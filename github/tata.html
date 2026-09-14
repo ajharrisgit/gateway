@@ -1,0 +1,4518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tata | Travel Estimator</title>
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+    }
+    #loading-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #1f4788;
+      font-family: 'Inter', sans-serif;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #dbeafe;
+      border-top-color: #1f4788;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="loading-indicator">
+      <div class="spinner"></div>
+      <h3 style="margin:0 0 8px;">Loading tata | Travel Estimator...</h3>
+      <p style="margin:0;color:#64748b;font-size:14px;">Initializing self-contained environment & storage...</p>
+    </div>
+  </div>
+
+  <script>
+    // Robust local storage shim for window.storage
+    if (!window.storage) {
+      window.storage = {
+        get: async (k) => {
+          const val = localStorage.getItem(k);
+          if (val === null) throw new Error("Key not found: " + k);
+          return { value: val };
+        },
+        set: async (k, v) => {
+          localStorage.setItem(k, v);
+        },
+        list: async () => {
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            keys.push(localStorage.key(i));
+          }
+          return { keys };
+        },
+        delete: async (k) => {
+          localStorage.removeItem(k);
+        }
+      };
+    }
+  </script>
+
+  <script src="vendor/runtime.js"></script>
+  <script>
+    const React = window.React;
+// tata | Travel Estimator | v2 JSX Artifact | FY2026/CY2026 | artifact-stable
+const {
+  useState,
+  useEffect,
+  useRef,
+  useCallback
+} = window.React;
+const {
+  MapPin,
+  Layers,
+  Printer,
+  Copy,
+  Navigation,
+  FileSpreadsheet,
+  X,
+  Info,
+  Car,
+  Plus,
+  Trash2,
+  Download,
+  Lock,
+  Upload,
+  AlertTriangle,
+  HelpCircle
+} = window.Lucide;
+
+// ─── Color Palette ───────────────────────────────────────────────────────────
+const C = {
+  pageBg: "#f8fafc",
+  border: "#e2e8f0",
+  blue: "#1f4788",
+  blueDark: "#15325f",
+  blueBg: "#eff6ff",
+  blueLight: "#dbeafe",
+  text: "#1e293b",
+  textMuted: "#64748b",
+  inputBg: "#f8fafc",
+  white: "#ffffff",
+  amber: "#d97706",
+  amberBg: "#fffbeb",
+  amberLight: "#fef3c7",
+  amberText: "#92400e",
+  // 6.84:1 on amberBg -- WCAG AA small text
+  red: "#dc2626",
+  redBg: "#fef2f2",
+  green: "#16a34a",
+  greenBg: "#f0fdf4",
+  greenText: "#166534",
+  // 6.81:1 on greenBg -- WCAG AA small text
+  gray: "#94a3b8",
+  grayBg: "#f1f5f9",
+  grayDark: "#475569",
+  footerText: "#64748b",
+  // 4.76:1 on white -- replaces C.gray which fails at 2.56:1
+  shadow: "0 1px 4px rgba(0,0,0,0.06)",
+  // card elevation
+  shadowMd: "0 4px 12px rgba(0,0,0,0.10)" // modal/elevated surfaces
+};
+const SK = "travel_estimator_v2_jsx";
+const DEFAULT_RATE_YEAR = "2026"; // update each January
+const DEFAULT_RATE_TYPE = "soc_2wd";
+
+// Terms, Privacy and Disclaimer. The same three documents, under the same three
+// names, ship in every app in the suite. Only the app name and the one paragraph
+// naming what this app stores differ; everything else is worded identically so a
+// reader who has read one has read them all.
+//
+// tata previously shipped a Terms modal and no privacy notice at all, while
+// writing claimant details and the whole mileage log to browser storage.
+//
+// Every claim here has to be true of the built app. Two rules are easy to break:
+//   - Say "nothing you enter leaves your device", not "no data is transmitted".
+//     The page does fetch its libraries and fonts, which discloses an IP address
+//     the way any web request does. The narrower claim is both true and stronger.
+//   - Rate currency is stated as the two calendars the rates actually follow,
+//     never as a fixed month. A hardcoded "current as of" date is wrong the day
+//     after it is written and cannot be checked by anything in the test suite.
+const POLICY_DOCS = {
+  terms: {
+    title: "Terms of Service",
+    body: [["What this is", "The Travel Mileage and Per Diem Estimator (tata) is a travel reimbursement planning tool maintained by AJSU. Using it means you accept these terms."], ["Permitted use", "This tool is for internal planning. Do not represent its output as a government document, as an approved claim, or as a record of one."], ["Your responsibility", "You are responsible for checking every figure against your agency's travel policy before you submit a claim, and for confirming the rates against the issuing authority."], ["No warranty", "This application is provided as is, with no express or implied warranty, including any warranty of accuracy, completeness, or fitness for a particular purpose."], ["Limitation of liability", "AJSU is not liable for any error or omission in an estimate, or for any claim, loss, or damage arising from use of this tool."], ["Changes", "These terms may change when the application is rebuilt. The rate data this build carries is named in the Disclaimer."], ["Contact", "Direct questions about this application to the AJSU development team."]]
+  },
+  privacy: {
+    title: "Privacy Notice",
+    body: [["Nothing you enter leaves your device", "This application sends no analytics, no telemetry, and no form submissions. What you type stays in your browser."], ["What is stored, and where", "Your claimant details (name, email address, department, and work location), your mileage log rows and notes, and your rate year selection are kept in your browser's local storage on this device. Nothing is stored anywhere else."], ["How to remove it", "Clearing your browser's site data for this page removes everything the application has stored. There is no copy on a server and no backup, so removing it is permanent. Export anything you want to keep first."], ["Requests this page makes", "The page loads its interface libraries and fonts from public content delivery networks. Those are one-way requests for the files themselves and carry nothing you have entered. Like any web request, they do disclose your IP address and browser details to the host serving the file."], ["What not to put here", "Enter only what a travel reimbursement needs. Do not use this tool to hold sensitive personal information beyond that."]]
+  },
+  disclaimer: {
+    title: "Disclaimer",
+    body: [["Planning estimates only", "This tool produces estimates for travel reimbursement planning. It does not produce travel vouchers, authorization documents, or agency records, and its output is not a reimbursement determination."], ["No approval authority", "Output from this tool is not supervisor approval, pre-authorization, or certification of any travel claim. What you are actually reimbursed is governed by your agency's travel policy and requires appropriate authorization."], ["Not affiliated with any government agency", "Rate data comes from publicly available publications. This tool is not endorsed by, affiliated with, or operated by the U.S. General Services Administration, the Internal Revenue Service, the Department of Defense, the Defense Travel Management Office, the State of Colorado, or any other government entity."], ["Rate currency", "Rates are embedded when the application is built, and they follow two separate calendars. Mileage rates change on January 1. Per diem rates change on October 1, the start of the federal fiscal year. This build carries FY2026 per diem rates and CY2026 mileage rates, so between those dates its figures can fall behind the published ones. Confirm the current rates with the issuing authority before you submit a claim."], ["Basis of calculation", "Calculations follow the Federal Travel Regulation at 41 CFR 301-11. Meals and incidental expenses are stated separately throughout, and first and last travel days are prorated."]]
+  }
+};
+
+// ─── Style helpers ────────────────────────────────────────────────────────────
+const inp = (extra = {}) => ({
+  background: C.inputBg,
+  border: `1px solid ${C.border}`,
+  borderRadius: "8px",
+  padding: "7px 12px",
+  fontSize: "14px",
+  color: C.text,
+  width: "100%",
+  boxSizing: "border-box",
+  ...extra
+});
+const inpFocus = e => {
+  e.target.style.borderColor = C.blue;
+  e.target.style.background = C.white;
+  e.target.style.outline = `2px solid ${C.blueLight}`;
+  e.target.style.outlineOffset = "1px";
+};
+const inpBlur = e => {
+  e.target.style.borderColor = C.border;
+  e.target.style.background = C.inputBg;
+  e.target.style.outline = "none";
+};
+const card = (extra = {}) => ({
+  background: C.white,
+  border: `1px solid ${C.border}`,
+  borderRadius: "12px",
+  padding: "20px",
+  marginBottom: "16px",
+  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+  ...extra
+});
+const btn = (variant = "primary", extra = {}) => {
+  const base = {
+    padding: "9px 18px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "600",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px"
+  };
+  if (variant === "primary") return {
+    ...base,
+    background: C.blue,
+    color: C.white,
+    ...extra
+  };
+  if (variant === "secondary") return {
+    ...base,
+    background: C.grayBg,
+    color: C.text,
+    border: `1px solid ${C.border}`,
+    ...extra
+  };
+  if (variant === "amber") return {
+    ...base,
+    background: C.amber,
+    color: C.white,
+    ...extra
+  };
+  if (variant === "ghost") return {
+    ...base,
+    background: "transparent",
+    color: C.blue,
+    border: `1px solid ${C.blueLight}`,
+    ...extra
+  };
+  return base;
+};
+const label = (extra = {}) => ({
+  display: "block",
+  fontSize: "13px",
+  fontWeight: "600",
+  color: C.grayDark,
+  marginBottom: "5px",
+  ...extra
+});
+const fmt$ = v => `$${(+v || 0).toFixed(2)}`;
+const fmt$c = v => `$${(+v || 0).toFixed(3)}`;
+
+// ─── Embedded Data ────────────────────────────────────────────────────────────
+const OFFICE_LOCATIONS = [{
+  name: "Citizens Service Center (Main Office)",
+  address: "1675 Garden of the Gods Road",
+  city: "Colorado Springs",
+  state: "CO",
+  zip: "80907"
+}, {
+  name: "Fountain Office",
+  address: "501 East Iowa Avenue",
+  city: "Fountain",
+  state: "CO",
+  zip: "80817"
+}, {
+  name: "Calhan Office",
+  address: "328 10th Street",
+  city: "Calhan",
+  state: "CO",
+  zip: "80808"
+}];
+const MILEAGE_RATES = [{
+  year: "2026",
+  label: "Calendar Year 2026 [Jan 1 - Dec 31, 2026]",
+  gsa_irs: 0.725,
+  soc_2wd: 0.65,
+  soc_4wd: 0.69
+}, {
+  year: "2025",
+  label: "Calendar Year 2025 [Jan 1 - Dec 31, 2025]",
+  gsa_irs: 0.700,
+  soc_2wd: 0.63,
+  soc_4wd: 0.67
+}];
+
+// FY2026 GSA rates. `mie` is the M&IE tier (meals + incidental); `seasons` carry
+// the month-banded lodging rate. Must agree with the Colorado rows of
+// toto.TravelEstimator.jsx's national GSA_CITY_RATES, which is where toto's
+// Colorado numbers live now that it carries no Colorado shortcut table of its
+// own; test/unit/rates.test.mjs enforces that agreement.
+// NOTE: prior versions stored the M&IE tier in a field named `lodgingRate` and
+// consumed it as lodging, which understated lodging and forced every Colorado
+// city to the $68 CONUS meal tier. Do not reintroduce a single flat rate field.
+const COLORADO_PER_DIEM_RATES = [{
+  city: "Aspen",
+  mie: 92,
+  seasons: [{
+    months: [10, 11],
+    l: 207
+  }, {
+    months: [12, 1, 2, 3],
+    l: 407
+  }, {
+    months: [4, 5, 6, 7, 8, 9],
+    l: 207
+  }]
+}, {
+  city: "Boulder / Broomfield",
+  mie: 80,
+  seasons: [{
+    months: [10],
+    l: 173
+  }, {
+    months: [11, 12, 1, 2, 3, 4],
+    l: 125
+  }, {
+    months: [5, 6, 7, 8, 9],
+    l: 173
+  }]
+}, {
+  city: "Colorado Springs",
+  mie: 86,
+  seasons: [{
+    months: [10, 11, 12, 1, 2, 3, 4, 5],
+    l: 123
+  }, {
+    months: [6, 7, 8],
+    l: 168
+  }, {
+    months: [9],
+    l: 123
+  }]
+}, {
+  city: "Cortez",
+  mie: 74,
+  seasons: [{
+    months: [10],
+    l: 133
+  }, {
+    months: [11, 12, 1, 2, 3, 4],
+    l: 110
+  }, {
+    months: [5, 6, 7, 8, 9],
+    l: 133
+  }]
+}, {
+  city: "Crested Butte / Gunnison",
+  mie: 86,
+  seasons: [{
+    months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    l: 154
+  }]
+}, {
+  city: "Denver / Aurora",
+  mie: 92,
+  seasons: [{
+    months: [10],
+    l: 215
+  }, {
+    months: [11, 12, 1, 2, 3],
+    l: 165
+  }, {
+    months: [4, 5, 6, 7, 8, 9],
+    l: 215
+  }]
+}, {
+  city: "Douglas",
+  mie: 80,
+  seasons: [{
+    months: [10, 11, 12, 1, 2, 3, 4, 5],
+    l: 111
+  }, {
+    months: [6, 7, 8],
+    l: 142
+  }, {
+    months: [9],
+    l: 111
+  }]
+}, {
+  city: "Durango",
+  mie: 80,
+  seasons: [{
+    months: [10, 11, 12, 1, 2, 3, 4, 5],
+    l: 121
+  }, {
+    months: [6, 7, 8, 9],
+    l: 184
+  }]
+}, {
+  city: "Fort Collins / Loveland",
+  mie: 80,
+  seasons: [{
+    months: [10, 11, 12, 1, 2, 3, 4, 5],
+    l: 110
+  }, {
+    months: [6, 7, 8],
+    l: 140
+  }, {
+    months: [9],
+    l: 110
+  }]
+}, {
+  city: "Grand Lake",
+  mie: 86,
+  seasons: [{
+    months: [10, 11],
+    l: 145
+  }, {
+    months: [12, 1, 2, 3],
+    l: 173
+  }, {
+    months: [4, 5],
+    l: 122
+  }, {
+    months: [6, 7, 8, 9],
+    l: 145
+  }]
+}, {
+  city: "Montrose",
+  mie: 74,
+  seasons: [{
+    months: [10],
+    l: 185
+  }, {
+    months: [11, 12, 1, 2, 3, 4, 5],
+    l: 136
+  }, {
+    months: [6, 7, 8, 9],
+    l: 185
+  }]
+}, {
+  city: "Silverthorne / Breckenridge",
+  mie: 92,
+  seasons: [{
+    months: [10, 11],
+    l: 162
+  }, {
+    months: [12, 1, 2, 3],
+    l: 282
+  }, {
+    months: [4, 5, 6, 7, 8, 9],
+    l: 162
+  }]
+}, {
+  city: "Steamboat Springs",
+  mie: 92,
+  seasons: [{
+    months: [10, 11],
+    l: 132
+  }, {
+    months: [12, 1, 2, 3],
+    l: 288
+  }, {
+    months: [4, 5],
+    l: 123
+  }, {
+    months: [6, 7, 8, 9],
+    l: 179
+  }]
+}, {
+  city: "Telluride",
+  mie: 92,
+  seasons: [{
+    months: [10, 11],
+    l: 184
+  }, {
+    months: [12, 1, 2, 3],
+    l: 350
+  }, {
+    months: [4, 5, 6, 7, 8, 9],
+    l: 184
+  }]
+}, {
+  city: "Vail",
+  mie: 92,
+  seasons: [{
+    months: [10, 11],
+    l: 201
+  }, {
+    months: [12, 1, 2, 3],
+    l: 397
+  }, {
+    months: [4, 5, 6, 7, 8, 9],
+    l: 201
+  }]
+}];
+const MEAL_PER_DIEM_RATES = [{
+  rateName: "Standard Rate",
+  totalPerDiem: 68,
+  breakfast: 16,
+  lunch: 19,
+  dinner: 28,
+  incidental: 5
+}, {
+  rateName: "High Cost Rate $74",
+  totalPerDiem: 74,
+  breakfast: 18,
+  lunch: 20,
+  dinner: 31,
+  incidental: 5
+}, {
+  rateName: "High Cost Rate $80",
+  totalPerDiem: 80,
+  breakfast: 20,
+  lunch: 22,
+  dinner: 33,
+  incidental: 5
+}, {
+  rateName: "High Cost Rate $86",
+  totalPerDiem: 86,
+  breakfast: 22,
+  lunch: 23,
+  dinner: 36,
+  incidental: 5
+}, {
+  rateName: "High Cost Rate $92",
+  totalPerDiem: 92,
+  breakfast: 23,
+  lunch: 26,
+  dinner: 38,
+  incidental: 5
+}];
+const CONUS_BASELINE = {
+  lodging: 110,
+  meals: 68
+};
+const OCONUS_STATES = new Set(["AK", "HI"]);
+const STANDARD_TIER = MEAL_PER_DIEM_RATES[0];
+const STANDARD_MEALS = STANDARD_TIER.totalPerDiem - STANDARD_TIER.incidental; // 63
+const CONUS_BASELINE_DESC = `$${CONUS_BASELINE.lodging} lodging / $${STANDARD_MEALS} meals + $${STANDARD_TIER.incidental} incidental`;
+const US_STATES = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC"];
+const ALL_PAY_PERIODS = [{
+  year: 2025,
+  periodNum: 1,
+  payDate: "Jan 10, 2025",
+  startDateStr: "2024-12-22",
+  endDateStr: "2025-01-04",
+  cutoffDate: "Jan 6, 2025"
+}, {
+  year: 2025,
+  periodNum: 2,
+  payDate: "Jan 24, 2025",
+  startDateStr: "2025-01-05",
+  endDateStr: "2025-01-18",
+  cutoffDate: "Jan 20, 2025"
+}, {
+  year: 2025,
+  periodNum: 3,
+  payDate: "Feb 7, 2025",
+  startDateStr: "2025-01-19",
+  endDateStr: "2025-02-01",
+  cutoffDate: "Feb 3, 2025"
+}, {
+  year: 2025,
+  periodNum: 4,
+  payDate: "Feb 21, 2025",
+  startDateStr: "2025-02-02",
+  endDateStr: "2025-02-15",
+  cutoffDate: "Feb 17, 2025"
+}, {
+  year: 2025,
+  periodNum: 5,
+  payDate: "Mar 7, 2025",
+  startDateStr: "2025-02-16",
+  endDateStr: "2025-02-28",
+  cutoffDate: "Mar 3, 2025"
+}, {
+  year: 2025,
+  periodNum: 6,
+  payDate: "Mar 21, 2025",
+  startDateStr: "2025-03-01",
+  endDateStr: "2025-03-14",
+  cutoffDate: "Mar 16, 2025"
+}, {
+  year: 2025,
+  periodNum: 7,
+  payDate: "Apr 4, 2025",
+  startDateStr: "2025-03-15",
+  endDateStr: "2025-03-28",
+  cutoffDate: "Mar 30, 2025"
+}, {
+  year: 2025,
+  periodNum: 8,
+  payDate: "Apr 18, 2025",
+  startDateStr: "2025-03-29",
+  endDateStr: "2025-04-11",
+  cutoffDate: "Apr 13, 2025"
+}, {
+  year: 2025,
+  periodNum: 9,
+  payDate: "May 2, 2025",
+  startDateStr: "2025-04-12",
+  endDateStr: "2025-04-25",
+  cutoffDate: "Apr 27, 2025"
+}, {
+  year: 2025,
+  periodNum: 10,
+  payDate: "May 16, 2025",
+  startDateStr: "2025-04-26",
+  endDateStr: "2025-05-09",
+  cutoffDate: "May 11, 2025"
+}, {
+  year: 2025,
+  periodNum: 11,
+  payDate: "May 30, 2025",
+  startDateStr: "2025-05-10",
+  endDateStr: "2025-05-23",
+  cutoffDate: "May 26, 2025"
+}, {
+  year: 2025,
+  periodNum: 12,
+  payDate: "Jun 13, 2025",
+  startDateStr: "2025-05-24",
+  endDateStr: "2025-06-06",
+  cutoffDate: "Jun 8, 2025"
+}, {
+  year: 2025,
+  periodNum: 13,
+  payDate: "Jun 27, 2025",
+  startDateStr: "2025-06-07",
+  endDateStr: "2025-06-20",
+  cutoffDate: "Jun 22, 2025"
+}, {
+  year: 2025,
+  periodNum: 14,
+  payDate: "Jul 11, 2025",
+  startDateStr: "2025-06-21",
+  endDateStr: "2025-07-04",
+  cutoffDate: "Jul 7, 2025"
+}, {
+  year: 2025,
+  periodNum: 15,
+  payDate: "Jul 25, 2025",
+  startDateStr: "2025-07-05",
+  endDateStr: "2025-07-18",
+  cutoffDate: "Jul 20, 2025"
+}, {
+  year: 2025,
+  periodNum: 16,
+  payDate: "Aug 8, 2025",
+  startDateStr: "2025-07-19",
+  endDateStr: "2025-08-01",
+  cutoffDate: "Aug 3, 2025"
+}, {
+  year: 2025,
+  periodNum: 17,
+  payDate: "Aug 22, 2025",
+  startDateStr: "2025-08-02",
+  endDateStr: "2025-08-15",
+  cutoffDate: "Aug 17, 2025"
+}, {
+  year: 2025,
+  periodNum: 18,
+  payDate: "Sep 5, 2025",
+  startDateStr: "2025-08-16",
+  endDateStr: "2025-08-29",
+  cutoffDate: "Aug 31, 2025"
+}, {
+  year: 2025,
+  periodNum: 19,
+  payDate: "Sep 19, 2025",
+  startDateStr: "2025-08-30",
+  endDateStr: "2025-09-12",
+  cutoffDate: "Sep 14, 2025"
+}, {
+  year: 2025,
+  periodNum: 20,
+  payDate: "Oct 3, 2025",
+  startDateStr: "2025-09-13",
+  endDateStr: "2025-09-26",
+  cutoffDate: "Sep 28, 2025"
+}, {
+  year: 2025,
+  periodNum: 21,
+  payDate: "Oct 17, 2025",
+  startDateStr: "2025-09-27",
+  endDateStr: "2025-10-10",
+  cutoffDate: "Oct 12, 2025"
+}, {
+  year: 2025,
+  periodNum: 22,
+  payDate: "Oct 31, 2025",
+  startDateStr: "2025-10-11",
+  endDateStr: "2025-10-24",
+  cutoffDate: "Oct 27, 2025"
+}, {
+  year: 2025,
+  periodNum: 23,
+  payDate: "Nov 14, 2025",
+  startDateStr: "2025-10-25",
+  endDateStr: "2025-11-07",
+  cutoffDate: "Nov 10, 2025"
+}, {
+  year: 2025,
+  periodNum: 24,
+  payDate: "Nov 28, 2025",
+  startDateStr: "2025-11-08",
+  endDateStr: "2025-11-21",
+  cutoffDate: "Nov 24, 2025"
+}, {
+  year: 2025,
+  periodNum: 25,
+  payDate: "Dec 12, 2025",
+  startDateStr: "2025-11-22",
+  endDateStr: "2025-12-05",
+  cutoffDate: "Dec 8, 2025"
+}, {
+  year: 2025,
+  periodNum: 26,
+  payDate: "Dec 26, 2025",
+  startDateStr: "2025-12-06",
+  endDateStr: "2025-12-19",
+  cutoffDate: "Dec 22, 2025"
+}, {
+  year: 2026,
+  periodNum: 1,
+  payDate: "Jan 9, 2026",
+  startDateStr: "2025-12-21",
+  endDateStr: "2026-01-03",
+  cutoffDate: "Jan 5, 2026"
+}, {
+  year: 2026,
+  periodNum: 2,
+  payDate: "Jan 23, 2026",
+  startDateStr: "2026-01-04",
+  endDateStr: "2026-01-17",
+  cutoffDate: "Jan 19, 2026"
+}, {
+  year: 2026,
+  periodNum: 3,
+  payDate: "Feb 6, 2026",
+  startDateStr: "2026-01-18",
+  endDateStr: "2026-01-31",
+  cutoffDate: "Feb 2, 2026"
+}, {
+  year: 2026,
+  periodNum: 4,
+  payDate: "Feb 20, 2026",
+  startDateStr: "2026-02-01",
+  endDateStr: "2026-02-14",
+  cutoffDate: "Feb 16, 2026"
+}, {
+  year: 2026,
+  periodNum: 5,
+  payDate: "Mar 6, 2026",
+  startDateStr: "2026-02-15",
+  endDateStr: "2026-02-28",
+  cutoffDate: "Mar 2, 2026"
+}, {
+  year: 2026,
+  periodNum: 6,
+  payDate: "Mar 20, 2026",
+  startDateStr: "2026-03-01",
+  endDateStr: "2026-03-14",
+  cutoffDate: "Mar 16, 2026"
+}, {
+  year: 2026,
+  periodNum: 7,
+  payDate: "Apr 3, 2026",
+  startDateStr: "2026-03-15",
+  endDateStr: "2026-03-28",
+  cutoffDate: "Mar 30, 2026"
+}, {
+  year: 2026,
+  periodNum: 8,
+  payDate: "Apr 17, 2026",
+  startDateStr: "2026-03-29",
+  endDateStr: "2026-04-11",
+  cutoffDate: "Apr 13, 2026"
+}, {
+  year: 2026,
+  periodNum: 9,
+  payDate: "May 1, 2026",
+  startDateStr: "2026-04-12",
+  endDateStr: "2026-04-25",
+  cutoffDate: "Apr 27, 2026"
+}, {
+  year: 2026,
+  periodNum: 10,
+  payDate: "May 15, 2026",
+  startDateStr: "2026-04-26",
+  endDateStr: "2026-05-09",
+  cutoffDate: "May 11, 2026"
+}, {
+  year: 2026,
+  periodNum: 11,
+  payDate: "May 29, 2026",
+  startDateStr: "2026-05-10",
+  endDateStr: "2026-05-23",
+  cutoffDate: "May 25, 2026"
+}, {
+  year: 2026,
+  periodNum: 12,
+  payDate: "Jun 12, 2026",
+  startDateStr: "2026-05-24",
+  endDateStr: "2026-06-06",
+  cutoffDate: "Jun 8, 2026"
+}, {
+  year: 2026,
+  periodNum: 13,
+  payDate: "Jun 26, 2026",
+  startDateStr: "2026-06-07",
+  endDateStr: "2026-06-20",
+  cutoffDate: "Jun 22, 2026"
+}, {
+  year: 2026,
+  periodNum: 14,
+  payDate: "Jul 10, 2026",
+  startDateStr: "2026-06-21",
+  endDateStr: "2026-07-04",
+  cutoffDate: "Jul 6, 2026"
+}, {
+  year: 2026,
+  periodNum: 15,
+  payDate: "Jul 24, 2026",
+  startDateStr: "2026-07-05",
+  endDateStr: "2026-07-18",
+  cutoffDate: "Jul 20, 2026"
+}, {
+  year: 2026,
+  periodNum: 16,
+  payDate: "Aug 7, 2026",
+  startDateStr: "2026-07-19",
+  endDateStr: "2026-08-01",
+  cutoffDate: "Aug 3, 2026"
+}, {
+  year: 2026,
+  periodNum: 17,
+  payDate: "Aug 21, 2026",
+  startDateStr: "2026-08-02",
+  endDateStr: "2026-08-15",
+  cutoffDate: "Aug 17, 2026"
+}, {
+  year: 2026,
+  periodNum: 18,
+  payDate: "Sep 4, 2026",
+  startDateStr: "2026-08-16",
+  endDateStr: "2026-08-29",
+  cutoffDate: "Aug 31, 2026"
+}, {
+  year: 2026,
+  periodNum: 19,
+  payDate: "Sep 18, 2026",
+  startDateStr: "2026-08-30",
+  endDateStr: "2026-09-12",
+  cutoffDate: "Sep 14, 2026"
+}, {
+  year: 2026,
+  periodNum: 20,
+  payDate: "Oct 2, 2026",
+  startDateStr: "2026-09-13",
+  endDateStr: "2026-09-26",
+  cutoffDate: "Sep 28, 2026"
+}, {
+  year: 2026,
+  periodNum: 21,
+  payDate: "Oct 16, 2026",
+  startDateStr: "2026-09-27",
+  endDateStr: "2026-10-10",
+  cutoffDate: "Oct 12, 2026"
+}, {
+  year: 2026,
+  periodNum: 22,
+  payDate: "Oct 30, 2026",
+  startDateStr: "2026-10-11",
+  endDateStr: "2026-10-24",
+  cutoffDate: "Oct 26, 2026"
+}, {
+  year: 2026,
+  periodNum: 23,
+  payDate: "Nov 13, 2026",
+  startDateStr: "2026-10-25",
+  endDateStr: "2026-11-07",
+  cutoffDate: "Nov 9, 2026"
+}, {
+  year: 2026,
+  periodNum: 24,
+  payDate: "Nov 27, 2026",
+  startDateStr: "2026-11-08",
+  endDateStr: "2026-11-21",
+  cutoffDate: "Nov 23, 2026"
+}, {
+  year: 2026,
+  periodNum: 25,
+  payDate: "Dec 11, 2026",
+  startDateStr: "2026-11-22",
+  endDateStr: "2026-12-05",
+  cutoffDate: "Dec 7, 2026"
+}, {
+  year: 2026,
+  periodNum: 26,
+  payDate: "Dec 24, 2026",
+  startDateStr: "2026-12-06",
+  endDateStr: "2026-12-19",
+  cutoffDate: "Dec 21, 2026"
+}];
+
+// ─── Calculation Functions ────────────────────────────────────────────────────
+function calcNightsAndDays(checkIn, checkOut) {
+  const [inY, inM, inD] = checkIn.split("-").map(Number);
+  const [outY, outM, outD] = checkOut.split("-").map(Number);
+  const msDay = 86400000;
+  const nights = Math.max(0, Math.round((Date.UTC(outY, outM - 1, outD) - Date.UTC(inY, inM - 1, inD)) / msDay));
+  return {
+    nights,
+    travelDays: nights + 1
+  };
+}
+function calcMileageSubtotal(miles, ratePerMile, isVehicle) {
+  if (!isVehicle) return 0;
+  const m = isFinite(miles) ? Math.max(0, miles) : 0;
+  return Math.round(m * ratePerMile * 100) / 100;
+}
+function calcDayPerDiem(totalPerDiem, incidental, is75Day, isOvernight) {
+  if (!isOvernight) return {
+    mealsOnly: 0,
+    incidentalAmount: 0
+  };
+  const mealsOnlyFull = totalPerDiem - incidental;
+  if (is75Day) {
+    return {
+      mealsOnly: Math.round(mealsOnlyFull * 0.75 * 100) / 100,
+      incidentalAmount: Math.round(incidental * 0.75 * 100) / 100
+    };
+  }
+  return {
+    mealsOnly: mealsOnlyFull,
+    incidentalAmount: incidental
+  };
+}
+function calcDayMealDeduction(flags, mealsTier, mealsOnlyRate) {
+  // mealsOnlyRate is already the meals portion (incidental excluded)
+  if (!flags || mealsOnlyRate <= 0) return 0;
+  const raw = (flags.b ? mealsTier.breakfast : 0) + (flags.l ? mealsTier.lunch : 0) + (flags.d ? mealsTier.dinner : 0);
+  return Math.min(raw, Math.max(0, mealsOnlyRate));
+}
+function calcIncidentalAllowance(nights, eligible, incidentalRate) {
+  return nights === 0 && eligible ? incidentalRate : 0;
+}
+function getPayPeriodForDate(dateStr) {
+  if (!dateStr) return null;
+  const t = new Date(dateStr + "T00:00:00");
+  for (const pp of ALL_PAY_PERIODS) {
+    if (t >= new Date(pp.startDateStr + "T00:00:00") && t <= new Date(pp.endDateStr + "T00:00:00")) return pp;
+  }
+  return null;
+}
+function getOverlappingPayPeriods(startStr, endStr) {
+  if (!startStr || !endStr) return [];
+  const s = new Date(startStr + "T00:00:00"),
+    e = new Date(endStr + "T00:00:00");
+  return ALL_PAY_PERIODS.filter(pp => new Date(pp.startDateStr + "T00:00:00") <= e && new Date(pp.endDateStr + "T00:00:00") >= s);
+}
+function getRateObj(year) {
+  return MILEAGE_RATES.find(r => r.year === year) || MILEAGE_RATES[0];
+}
+
+// Resolve the lodging rate and M&IE tier for a destination on a given date.
+// `date` selects the lodging season; omit it only when no date is known yet.
+function lookupPerDiemEmbedded(city, state, date) {
+  if (OCONUS_STATES.has(state)) return {
+    lodging: 0,
+    meals: 0,
+    source: "oconus"
+  };
+  const q = (city || "").trim().toLowerCase();
+  if (!q) return {
+    lodging: CONUS_BASELINE.lodging,
+    meals: CONUS_BASELINE.meals,
+    source: "baseline"
+  };
+  const names = r => r.city.toLowerCase().split("/").map(s => s.trim());
+  // Exact name match wins before any substring match.
+  const match = COLORADO_PER_DIEM_RATES.find(r => names(r).some(c => c === q)) || COLORADO_PER_DIEM_RATES.find(r => names(r).some(c => c.includes(q) || q.includes(c)));
+  if (!match) return {
+    lodging: CONUS_BASELINE.lodging,
+    meals: CONUS_BASELINE.meals,
+    source: "baseline"
+  };
+  const d = date instanceof Date ? date : new Date((date || "") + "T00:00:00");
+  const month = isNaN(d.getTime()) ? new Date().getMonth() + 1 : d.getMonth() + 1;
+  const season = match.seasons.find(s => s.months.includes(month));
+  return {
+    lodging: season ? season.l : CONUS_BASELINE.lodging,
+    meals: match.mie,
+    source: "city"
+  };
+}
+
+// SHA-256 of the Document Import access code, compared instead of the literal so the
+// code is not readable in source. See PasscodeModal for why this is not security.
+const ACCESS_CODE_SHA256 = "31f7a65e315586ac198bd798b6629ce4903d0899476d5741a9f32e2e521b6a66";
+
+// ─── PasscodeModal ────────────────────────────────────────────────────────────
+// Passcode gates the document-import feature; no AI branding exposed
+function PasscodeModal({
+  onSuccess,
+  onClose
+}) {
+  const [val, setVal] = useState("");
+  const [err, setErr] = useState(false);
+  const inputRef = useRef(null);
+  const check = async () => {
+    const norm = val.trim().toLowerCase();
+    let digest = "";
+    try {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+      digest = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      setErr(true);
+      setVal("");
+      return;
+    }
+    if (digest === ACCESS_CODE_SHA256) {
+      onSuccess();
+    } else {
+      setErr(true);
+      setVal("");
+    }
+  };
+  // Focus input on mount; close on Escape
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = e => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "passcode-title",
+    style: {
+      background: C.white,
+      borderRadius: "16px",
+      padding: "32px",
+      width: "340px",
+      boxShadow: "0 20px 60px rgba(0,0,0,0.25)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      marginBottom: "16px"
+    }
+  }, /*#__PURE__*/React.createElement(Lock, {
+    size: 22,
+    color: C.blue,
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("h2", {
+    id: "passcode-title",
+    style: {
+      margin: 0,
+      fontSize: "18px",
+      fontWeight: "700",
+      color: C.text
+    }
+  }, "Document Import")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: "13px",
+      color: C.textMuted,
+      marginBottom: "20px"
+    }
+  }, "Enter the access code to enable document import. Paste an existing voucher or trip description and the form fields will be filled automatically."), /*#__PURE__*/React.createElement("input", {
+    ref: inputRef,
+    type: "password",
+    value: val,
+    onChange: e => {
+      setVal(e.target.value);
+      setErr(false);
+    },
+    onKeyDown: e => e.key === "Enter" && check(),
+    placeholder: "Enter access code",
+    style: inp({
+      borderColor: err ? C.red : C.border
+    }),
+    onFocus: inpFocus,
+    onBlur: inpBlur,
+    "aria-label": "Access code",
+    "aria-describedby": err ? "passcode-error" : undefined
+  }), err && /*#__PURE__*/React.createElement("p", {
+    id: "passcode-error",
+    role: "alert",
+    style: {
+      color: C.red,
+      fontSize: "12px",
+      marginTop: "6px"
+    }
+  }, "Incorrect code. Try again."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "10px",
+      marginTop: "20px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: check,
+    style: btn("primary", {
+      flex: 1
+    })
+  }, "Unlock"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: btn("secondary")
+  }, "Cancel"))));
+}
+
+// ─── ParserModal (Document Import) ──────────────────────────────────────────────
+function ParserModal({
+  onClose,
+  onApply
+}) {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState("idle");
+  const [result, setResult] = useState(null);
+  const [errMsg, setErrMsg] = useState("");
+  const abortRef = useRef(null);
+  const textareaRef = useRef(null);
+  // Focus textarea on mount; close on Escape
+  useEffect(() => {
+    textareaRef.current?.focus();
+    const onKey = e => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Local pre-parser: extracts structured fields without API call
+  // Reduces AI scope to name/dept/city/location which need contextual understanding
+  const localPreParse = txt => {
+    const out = {};
+    // Email -- regex
+    const em = txt.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+    if (em) out.claimantEmail = em[0];
+    // Dates -- YYYY-MM-DD or MM/DD/YYYY
+    const iso = [...txt.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)].map(m => `${m[1]}-${m[2]}-${m[3]}`);
+    const mdy = [...txt.matchAll(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g)].map(m => `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`);
+    const dates = [...new Set([...iso, ...mdy])].sort();
+    if (dates[0]) out.checkInDate = dates[0];
+    if (dates[dates.length - 1] && dates.length > 1) out.checkOutDate = dates[dates.length - 1];
+    // Miles -- "145 miles" or "miles: 145" or "mileage: 145"
+    const miA = txt.match(/(\d+(?:\.\d+)?)\s*(?:miles?|mi\.)\b/i);
+    const miB = txt.match(/(?:miles?|mileage)[:\s]+(\d+(?:\.\d+)?)/i);
+    const mi = miA ? miA[1] : miB ? miB[1] : null;
+    if (mi) out.miles = parseFloat(mi);
+    // isOvernight
+    if (/\b(overnight|hotel|lodging|motel|stayed)\b/i.test(txt)) out.isOvernight = true;else if (/\bno\s+overnight\b|\bsame.?day\b|\bday\s+trip\b/i.test(txt)) out.isOvernight = false;
+    // State abbreviation
+    const stFound = (txt.match(/\b([A-Z]{2})\b/g) || []).filter(s => ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC"].includes(s));
+    if (stFound[0]) out.destState = stFound[0];
+    // Transport method
+    if (/\b(4wd|4x4|awd|suv|four.?wheel)\b/i.test(txt)) out.rateType = 'soc_4wd';else if (/\b(gsa|irs|federal)\b/i.test(txt)) out.rateType = 'gsa_irs';
+    if (/\b(rental|rent.a.car|hertz|enterprise|avis|budget)\b/i.test(txt)) out.transportMethod = 'rental';else if (/\b(flight|flew|airline|airplane|airfare|plane)\b/i.test(txt)) out.transportMethod = 'flight';else if (/\b(vehicle|car|truck|drove|driving|pov)\b/i.test(txt)) out.transportMethod = 'vehicle';
+    return out;
+  };
+  const parse = async () => {
+    if (!text.trim()) return;
+    setStatus("loading");
+    setResult(null);
+    setErrMsg("");
+    abortRef.current = new AbortController();
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-5",
+          max_tokens: 256,
+          system: `Extract travel claim fields from free-form text and return ONLY a raw JSON object -- no markdown fences, no explanation, no preamble. Do not mention any AI system or tool name in your response.
+
+Keys to extract (omit any you cannot find with confidence):
+- checkInDate / checkOutDate: YYYY-MM-DD format
+- destCity: city name string
+- destState: two-letter US state abbreviation  
+- miles: numeric miles driven (number only)
+- rateType: "soc_4wd" if 4WD/SUV/AWD mentioned, "gsa_irs" if federal/IRS/GSA mentioned, else "soc_2wd"
+- transportMethod: "vehicle" | "rental" | "flight"
+- claimantName: person's full name
+- claimantEmail: email address
+- claimantDept: department or division name
+- claimantWorkLocation: office location or work address
+- isOvernight: true if hotel/lodging/overnight mentioned, false if same-day/day-trip
+
+If the response from a prior attempt included markdown fences, strip them and return only the JSON object.`,
+          messages: [{
+            role: "user",
+            content: `Extract travel fields from this text:\n\n${text.slice(0, 4000)}`
+          }]
+        }),
+        signal: abortRef.current.signal
+      });
+      if (!resp.ok) throw new Error(`API error ${resp.status}. Check your network connection and try again.`);
+      const data = await resp.json();
+      // Strip markdown fences if model wrapped response despite instructions
+      const rawText = data?.content?.[0]?.text || "{}";
+      const clean = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const aiParsed = JSON.parse(clean || "{}");
+      // Merge: AI takes priority for fields it found; local pre-parse fills gaps
+      const local = localPreParse(text);
+      const merged = {
+        ...local,
+        ...aiParsed
+      };
+      setResult(merged);
+      setStatus("done");
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        setErrMsg(e.message || "Extraction failed. Check your network connection and try again.");
+        setStatus("error");
+      }
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "16px"
+    },
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "parser-title",
+    style: {
+      background: C.white,
+      borderRadius: "16px",
+      padding: "28px",
+      width: "100%",
+      maxWidth: "560px",
+      boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+      maxHeight: "90vh",
+      overflowY: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "parser-title",
+    style: {
+      margin: 0,
+      fontSize: "18px",
+      fontWeight: "700",
+      color: C.text,
+      display: "flex",
+      alignItems: "center",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement(Upload, {
+    size: 20,
+    color: C.blue,
+    "aria-hidden": "true"
+  }), " Document Import"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: "10px",
+      minWidth: "44px",
+      minHeight: "44px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    "aria-label": "Close"
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 20,
+    color: C.textMuted
+  }))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: "13px",
+      color: C.textMuted,
+      marginBottom: "14px"
+    }
+  }, "Paste text from a travel voucher, estimate printout, or trip notes. Fields are extracted and pre-filled. Review each field before calculating."), /*#__PURE__*/React.createElement("textarea", {
+    ref: textareaRef,
+    value: text,
+    onChange: e => setText(e.target.value),
+    placeholder: "Paste your travel voucher, estimate printout, or trip description here...",
+    style: {
+      ...inp(),
+      height: "140px",
+      resize: "vertical",
+      fontFamily: "inherit",
+      lineHeight: "1.5"
+    },
+    onFocus: inpFocus,
+    onBlur: inpBlur
+  }), status === "error" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.redBg,
+      border: `1px solid ${C.red}`,
+      borderRadius: "8px",
+      padding: "10px",
+      marginTop: "10px",
+      fontSize: "13px",
+      color: C.red
+    }
+  }, errMsg), status === "done" && result && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.greenBg,
+      border: `1px solid ${C.green}`,
+      borderRadius: "8px",
+      padding: "12px",
+      marginTop: "12px",
+      fontSize: "13px"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontWeight: "700",
+      color: C.greenText,
+      marginBottom: "8px"
+    }
+  }, "Fields extracted:"), Object.entries(result).map(([k, v]) => /*#__PURE__*/React.createElement("div", {
+    key: k,
+    style: {
+      display: "flex",
+      gap: "8px",
+      marginBottom: "3px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.grayDark,
+      minWidth: "160px"
+    }
+  }, k, ":"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.text,
+      fontWeight: "600"
+    }
+  }, String(v))))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "10px",
+      marginTop: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: parse,
+    disabled: status === "loading" || !text.trim(),
+    style: btn("primary", {
+      opacity: status === "loading" || !text.trim() ? 0.6 : 1,
+      flex: 1
+    })
+  }, status === "loading" ? "Extracting fields..." : "Extract fields"), status === "done" && result && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onApply(result);
+      onClose();
+    },
+    style: btn("amber")
+  }, "Fill form with these fields"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    style: btn("secondary")
+  }, "Cancel"))));
+}
+
+// ─── Toast / Confirm system ───────────────────────────────────────────────────
+function Toast({
+  msg,
+  onDismiss
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(t);
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    role: "alert",
+    style: {
+      position: "fixed",
+      bottom: "24px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: C.text,
+      color: C.white,
+      padding: "12px 20px",
+      borderRadius: "10px",
+      fontSize: "14px",
+      maxWidth: "480px",
+      zIndex: 2000,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement(Info, {
+    size: 16,
+    "aria-hidden": "true"
+  }), msg, /*#__PURE__*/React.createElement("button", {
+    onClick: onDismiss,
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: C.gray,
+      marginLeft: "8px",
+      padding: "10px",
+      minWidth: "44px",
+      minHeight: "44px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    "aria-label": "Dismiss"
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 14
+  })));
+}
+function ConfirmDialog({
+  msg,
+  onConfirm,
+  onCancel,
+  confirmLabel = "Remove",
+  cancelLabel = "Keep"
+}) {
+  // Close on Escape
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return /*#__PURE__*/React.createElement("div", {
+    role: "alertdialog",
+    "aria-modal": "true",
+    "aria-labelledby": "confirm-msg",
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      zIndex: 1500,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    onClick: e => {
+      if (e.target === e.currentTarget) onCancel();
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.white,
+      borderRadius: "14px",
+      padding: "28px",
+      maxWidth: "380px",
+      boxShadow: "0 16px 48px rgba(0,0,0,0.2)"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    id: "confirm-msg",
+    style: {
+      fontSize: "15px",
+      color: C.text,
+      marginBottom: "20px"
+    }
+  }, msg), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "10px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onConfirm,
+    style: btn("primary", {
+      background: C.red
+    })
+  }, confirmLabel), /*#__PURE__*/React.createElement("button", {
+    onClick: onCancel,
+    style: btn("secondary")
+  }, cancelLabel))));
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const newRow = () => ({
+  id: Date.now() + Math.random(),
+  dateStr: "",
+  origin: "Citizens Service Center - Main Office",
+  destination: "",
+  purpose: "",
+  miles: 0,
+  rateType: DEFAULT_RATE_TYPE,
+  tripType: "one_way",
+  notes: ""
+});
+const newParkingRow = () => ({
+  id: Date.now() + Math.random(),
+  dateStr: "",
+  location: "",
+  amount: 0,
+  notes: ""
+});
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [activeTab, setActiveTab] = useState("estimate");
+  const [toast, setToast] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [showParser, setShowParser] = useState(false);
+  const [aiUnlocked, setAiUnlocked] = useState(false);
+  const [checkInDate, setCheckInDate] = useState("");
+  const [checkOutDate, setCheckOutDate] = useState("");
+  const [isOvernight, setIsOvernight] = useState(true);
+  const [destCityInput, setDestCityInput] = useState("");
+  const [destStateSelect, setDestStateSelect] = useState("CO");
+  const [selectedRateYear, setSelectedRateYear] = useState(DEFAULT_RATE_YEAR);
+  const [selectedRateType, setSelectedRateType] = useState(DEFAULT_RATE_TYPE);
+  const [transportMethod, setTransportMethod] = useState("vehicle");
+  const [manualMiles, setManualMiles] = useState(0);
+  const [mealsProvided, setMealsProvided] = useState(false);
+  const [mealProvidedFlags, setMealProvidedFlags] = useState([]);
+  const [incidentalEligible, setIncidentalEligible] = useState(false);
+  const [originText, setOriginText] = useState("");
+  const [destinationText, setDestinationText] = useState("");
+  const [tripPurpose, setTripPurpose] = useState("");
+  const [destZip, setDestZip] = useState("");
+  const [logStartDate, setLogStartDate] = useState("");
+  const [logEndDate, setLogEndDate] = useState("");
+  const [parkingRows, setParkingRows] = useState([]);
+  // One state for all three policy documents, keyed into POLICY_DOCS.
+  const [policyType, setPolicyType] = useState(null);
+  const [ariaAnnouncement, setAriaAnnouncement] = useState("");
+
+  // Escape key handler for the policy modal -- consistent with PasscodeModal/ParserModal pattern
+  useEffect(() => {
+    if (!policyType) return;
+    const onKey = e => {
+      if (e.key === "Escape") setPolicyType(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [policyType]);
+  const [hasCalculated, setHasCalculated] = useState(false);
+  const [estimatedTotals, setEstimatedTotals] = useState(null);
+  const [mapOrigin, setMapOrigin] = useState("");
+  const [mapDest, setMapDest] = useState("");
+  const [mapMiles, setMapMiles] = useState(0);
+  const [mapRateYear, setMapRateYear] = useState(DEFAULT_RATE_YEAR);
+  const [mapRateType, setMapRateType] = useState(DEFAULT_RATE_TYPE);
+  const [mileageRows, setMileageRows] = useState([newRow()]);
+  const [logRateYear, setLogRateYear] = useState(DEFAULT_RATE_YEAR);
+  const [claimantName, setClaimantName] = useState("");
+  const [claimantEmail, setClaimantEmail] = useState("");
+  const [claimantDept, setClaimantDept] = useState("");
+  const [claimantLocation, setClaimantLocation] = useState("");
+  const [logNotes, setLogNotes] = useState("");
+  const storageLoaded = useRef(false);
+  useEffect(() => {
+    // Platform detection -- sets data-platform for test harness identification
+    const platform = window.storage ? "claude-artifact" : typeof process !== "undefined" ? "claude-code" : "browser";
+    document.body.setAttribute("data-platform", platform);
+  }, []);
+  useEffect(() => {
+    const css = document.createElement("style");
+    css.innerHTML = `
+      /* No screen-side .no-print rule. There used to be one setting
+         display: initial !important, which resolves to *inline*, not block. It
+         matched nothing today, so it did nothing; but the class is advertised
+         by the print rule below, and the first person to use it on a div would
+         have had that div silently go inline on screen while the print
+         behaviour they wanted worked correctly. A utility class must not
+         booby-trap the layout of anything that adopts it. */
+      @media print {
+        /* Available utilities. Nothing carries these classes today: tata prints
+           subtractively via the #app-header/#app-tabs/#app-footer rule below,
+           which is the actual mechanism. They are kept because they are correct
+           and conventional, so a new print-only element has somewhere to go. */
+        .no-print { display: none !important; }
+        .print-section { page-break-inside: avoid; }
+        body { background: white !important; }
+        #app-header, #app-tabs, #app-footer { display: none !important; }
+        /* A rule revealing #print-area used to sit here, and no element with
+           that id has ever existed in this file. It was
+           harmless only by luck: tata prints subtractively, hiding the header,
+           tabs and footer and letting the rest of the body through, so the
+           dead rule revealed nothing because nothing needed revealing. The
+           same mistake in toto, which prints additively, blanked every page it
+           produced. A print selector that matches nothing is not a style
+           question; it is the difference between a document and an empty
+           sheet. */
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      button:hover { opacity: 0.88; transition: opacity 0.15s; }
+      button:focus-visible { outline: 2px solid #1f4788; outline-offset: 2px; }
+      input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 2px solid #1f4788; outline-offset: 1px;
+      }
+      a:focus-visible { outline: 2px solid #1f4788; outline-offset: 2px; }
+    `;
+    document.head.appendChild(css);
+    return () => {
+      try {
+        document.head.removeChild(css);
+      } catch (_) {/* already removed */}
+    };
+  }, []);
+  useEffect(() => {
+    if (storageLoaded.current) return;
+    storageLoaded.current = true;
+    (async () => {
+      // Pre-check key existence via list() to avoid 404 console errors on first run.
+      // window.storage.get() on a missing key throws (404), which logs as a console error
+      // even inside try/catch. list() returns an empty keys array cleanly when nothing is stored.
+      try {
+        if (!window.storage) return;
+        const listing = await window.storage.list();
+        const keys = listing?.keys ?? [];
+        if (!keys.includes(SK)) return; // first run -- nothing stored yet, skip get
+        const r = await window.storage.get(SK);
+        if (!r?.value) return;
+        const p = JSON.parse(r.value);
+        if (p.claimantName) setClaimantName(p.claimantName);
+        if (p.claimantEmail) setClaimantEmail(p.claimantEmail);
+        if (p.claimantDept) setClaimantDept(p.claimantDept);
+        if (p.claimantLocation) setClaimantLocation(p.claimantLocation);
+        if (p.selectedRateYear) setSelectedRateYear(p.selectedRateYear);
+        if (p.selectedRateType) setSelectedRateType(p.selectedRateType);
+        if (p.mileageRows) setMileageRows(p.mileageRows);
+        if (p.logRateYear) setLogRateYear(p.logRateYear);
+        if (p.logNotes) setLogNotes(p.logNotes);
+        if (p.aiUnlocked) setAiUnlocked(true);
+      } catch (_) {/* unreadable or corrupt saved state: fall through to defaults */}
+    })();
+  }, []);
+
+  // useRef shadow of all persisted state -- always current, no stale closure risk
+  const persistRef = useRef({});
+  useEffect(() => {
+    persistRef.current = {
+      claimantName,
+      claimantEmail,
+      claimantDept,
+      claimantLocation,
+      selectedRateYear,
+      selectedRateType,
+      mileageRows,
+      logRateYear,
+      logNotes,
+      aiUnlocked
+    };
+  });
+  const saveStorage = useCallback(async (patch = {}) => {
+    try {
+      await window.storage?.set(SK, JSON.stringify({
+        ...persistRef.current,
+        ...patch
+      }));
+    } catch (_) {/* best effort: storage may be full or blocked */}
+  }, []); // stable reference -- reads live state via persistRef
+
+  // Autosave mileage rows 500ms after any row change (covers updateRow edits)
+  const mileageSaveTimer = useRef(null);
+  useEffect(() => {
+    if (!storageLoaded.current) return;
+    clearTimeout(mileageSaveTimer.current);
+    mileageSaveTimer.current = setTimeout(() => saveStorage(), 500);
+    return () => clearTimeout(mileageSaveTimer.current);
+  }, [mileageRows, saveStorage]);
+  const triggerToast = msg => setToast(msg);
+  const triggerConfirm = (msg, cb, confirmLabel, cancelLabel) => setConfirm({
+    msg,
+    cb,
+    confirmLabel,
+    cancelLabel
+  });
+  const handleCheckInChange = val => {
+    setCheckInDate(val);
+    if (val) {
+      const yr = val.split("-")[0];
+      if (MILEAGE_RATES.find(r => r.year === yr)) setSelectedRateYear(yr);
+      // Auto-advance end date if it would fall before the new start date
+      if (checkOutDate && val > checkOutDate) {
+        setCheckOutDate(val);
+        triggerToast("End date moved to match start date. Adjust if needed.");
+      }
+    }
+  };
+  const updateRow = (idx, field, value) => setMileageRows(rows => rows.map((r, i) => i === idx ? {
+    ...r,
+    [field]: value
+  } : r));
+  const addRow = () => setMileageRows(rows => [...rows, newRow()]);
+  const removeRow = idx => triggerConfirm("Remove this row? This can't be undone.", () => setMileageRows(rows => rows.filter((_, i) => i !== idx)), "Remove row", "Keep it");
+  const runCalculations = miles => {
+    if (!checkInDate) {
+      triggerToast("Select a travel start date to continue.");
+      return;
+    }
+    if (!checkOutDate) {
+      triggerToast("Select a travel end date to continue.");
+      return;
+    }
+    const ci = new Date(checkInDate + "T00:00:00"),
+      co = new Date(checkOutDate + "T00:00:00");
+    if (ci > co) {
+      triggerToast("End date can't be before start date. Check your dates.");
+      return;
+    }
+    const {
+      nights,
+      travelDays
+    } = calcNightsAndDays(checkInDate, checkOutDate);
+    const computedNights = isOvernight ? nights : 0;
+    const isOconusDest = OCONUS_STATES.has(destStateSelect);
+    if (isOconusDest) triggerToast("Alaska and Hawaii require DoD OCONUS rates, which are not covered here. Lodging and meals are set to $0. Verify at travel.dod.mil.");
+
+    // Meals and the rate source are trip-level; lodging deliberately is not.
+    // It is resolved per night below, because GSA lodging caps are month-banded
+    // and a stay can cross a season boundary.
+    const {
+      meals: lookupMeals,
+      source: rateSource
+    } = isOconusDest ? {
+      lodging: 0,
+      meals: 0,
+      source: "oconus"
+    } : lookupPerDiemEmbedded(destCityInput, destStateSelect, checkInDate);
+    if (!isOconusDest && rateSource === "baseline" && destCityInput.trim()) {
+      triggerToast(`"${destCityInput.trim()}" not found in embedded rate data. CONUS baseline applied: ${CONUS_BASELINE_DESC}.`);
+    }
+    const mealsTier = isOconusDest ? {
+      rateName: "OCONUS (DoD)",
+      totalPerDiem: 0,
+      breakfast: 0,
+      lunch: 0,
+      dinner: 0,
+      incidental: 0
+    } : MEAL_PER_DIEM_RATES.find(m => m.totalPerDiem === lookupMeals) || MEAL_PER_DIEM_RATES[0];
+    const rateObj = getRateObj(selectedRateYear);
+    const perMile = rateObj[selectedRateType];
+    const mileageSub = calcMileageSubtotal(miles, perMile, transportMethod === "vehicle");
+    let lodgingSub = 0;
+    const dailyBreakdown = [];
+    for (let i = 0; i < travelDays; i++) {
+      const cur = new Date(checkInDate + "T00:00:00");
+      cur.setDate(cur.getDate() + i);
+      const isFirst = i === 0,
+        isLast = i === travelDays - 1,
+        isSingle = travelDays === 1;
+      const is75 = isSingle || isFirst || isLast;
+      const flags = mealsProvided ? mealProvidedFlags[i] : undefined;
+      const {
+        mealsOnly,
+        incidentalAmount
+      } = calcDayPerDiem(mealsTier.totalPerDiem, mealsTier.incidental, is75, nights > 0);
+      const mealDeduction = calcDayMealDeduction(flags, mealsTier, mealsOnly);
+      const mealRateNet = Math.max(0, mealsOnly - mealDeduction);
+      const dayType = isSingle ? "Single Day" : isFirst ? "Departure" : isLast ? "Return" : "Full Day";
+      const hasLodging = isOvernight && i < nights;
+      // Resolve lodging for THIS night, not once for the whole trip. GSA lodging
+      // caps are month-banded, so a stay that crosses a season boundary (Denver
+      // is $215 on Oct 31 and $165 on Nov 1) bills each night at its own rate.
+      const nightLodging = hasLodging ? isOconusDest ? 0 : lookupPerDiemEmbedded(destCityInput, destStateSelect, cur).lodging : 0;
+      if (hasLodging) lodgingSub += nightLodging;
+      const rawDate = cur.toISOString().split("T")[0];
+      const dateStr = cur.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      });
+      const mappedPP = getPayPeriodForDate(rawDate);
+      dailyBreakdown.push({
+        dayNum: i + 1,
+        dateStr,
+        rawDate,
+        dayType,
+        mealRate: mealsOnly,
+        mealRateNet,
+        mealDeduction,
+        mealPercent: is75 ? 75 : 100,
+        incidentalRate: incidentalAmount,
+        breakfastProvided: flags?.b ?? false,
+        lunchProvided: flags?.l ?? false,
+        dinnerProvided: flags?.d ?? false,
+        lodgingRate: nightLodging,
+        hasLodging,
+        payPeriod: mappedPP
+      });
+    }
+    const mealsSubtotal = dailyBreakdown.reduce((s, d) => s + d.mealRate, 0);
+    const mealsSubtotalNet = dailyBreakdown.reduce((s, d) => s + d.mealRateNet, 0);
+    const mealsDeduction = mealsSubtotal - mealsSubtotalNet;
+    const incidentalSub = dailyBreakdown.reduce((s, d) => s + d.incidentalRate, 0);
+    const incidentalAllow = calcIncidentalAllowance(nights, incidentalEligible, mealsTier.incidental);
+    const totalClaim = lodgingSub + mealsSubtotalNet + incidentalSub + mileageSub + incidentalAllow;
+
+    // Nightly rates can differ across a season boundary. Track the spread so the
+    // summary never prints "N nights x $X" against a subtotal that does not divide.
+    const nightlyRates = dailyBreakdown.filter(d => d.hasLodging).map(d => d.lodgingRate);
+    const lodgingRateMin = nightlyRates.length ? Math.min(...nightlyRates) : 0;
+    const lodgingRateMax = nightlyRates.length ? Math.max(...nightlyRates) : 0;
+    setEstimatedTotals({
+      nights: computedNights,
+      travelDays,
+      isOvernight,
+      lodgingRate: isOvernight ? lodgingRateMin : 0,
+      lodgingRateMin,
+      lodgingRateMax,
+      lodgingRateVaries: lodgingRateMin !== lodgingRateMax,
+      breakfast: mealsTier.breakfast,
+      lunch: mealsTier.lunch,
+      dinner: mealsTier.dinner,
+      incidental: mealsTier.incidental,
+      incidental75: Math.round(mealsTier.incidental * 0.75 * 100) / 100,
+      fullMealsRate: mealsTier.totalPerDiem - mealsTier.incidental,
+      firstLastMeals: Math.round((mealsTier.totalPerDiem - mealsTier.incidental) * 0.75 * 100) / 100,
+      lodgingSubtotal: lodgingSub,
+      mealsSubtotal,
+      mealsSubtotalNet,
+      mealsDeduction,
+      incidentalSubtotal: incidentalSub,
+      incidentalAllowance: incidentalAllow,
+      mileageSubtotal: mileageSub,
+      milesUsed: miles,
+      perMileRate: perMile,
+      totalClaim,
+      dailyBreakdown,
+      mappedPayPeriods: getOverlappingPayPeriods(checkInDate, checkOutDate),
+      destCitySnap: destCityInput.trim(),
+      destStateSnap: destStateSelect,
+      checkInSnap: checkInDate,
+      checkOutSnap: checkOutDate,
+      rateYearSnap: selectedRateYear,
+      rateTypeSnap: selectedRateType,
+      transportSnap: transportMethod,
+      rateSource,
+      oconusWarning: isOconusDest,
+      originSnap: originText,
+      destinationSnap: destinationText
+    });
+    setAriaAnnouncement(`Estimate calculated: total $${totalClaim.toFixed(2)} for ${travelDays} ${travelDays === 1 ? "day" : "days"} trip.`);
+    setHasCalculated(true);
+    setTimeout(() => {
+      document.getElementById('results-anchor')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 100);
+  };
+  const handleCalculate = e => {
+    e.preventDefault();
+    runCalculations(manualMiles);
+  };
+  const applyParsed = p => {
+    if (p.checkInDate) {
+      handleCheckInChange(p.checkInDate);
+    }
+    if (p.checkOutDate) setCheckOutDate(p.checkOutDate);
+    if (p.destCity) setDestCityInput(p.destCity);
+    if (p.destState) setDestStateSelect(p.destState);
+    if (p.miles !== undefined) setManualMiles(Number(p.miles) || 0);
+    if (p.rateType) setSelectedRateType(p.rateType);
+    if (p.transportMethod) setTransportMethod(p.transportMethod);
+    if (p.isOvernight !== undefined) setIsOvernight(!!p.isOvernight);
+    if (p.claimantName) setClaimantName(p.claimantName);
+    if (p.claimantEmail) setClaimantEmail(p.claimantEmail);
+    if (p.claimantDept) setClaimantDept(p.claimantDept);
+    if (p.claimantWorkLocation) setClaimantLocation(p.claimantWorkLocation);
+    triggerToast("Fields pre-filled from document. Review each field, then calculate.");
+  };
+  const copyEstimate = () => {
+    if (!estimatedTotals) return;
+    const t = estimatedTotals;
+    const rateObj = getRateObj(t.rateYearSnap);
+    const rateLabel = t.rateTypeSnap === "gsa_irs" ? `Federal GSA/IRS ($${rateObj.gsa_irs.toFixed(3)}/mi)` : t.rateTypeSnap === "soc_2wd" ? `State of Colorado 2WD ($${rateObj.soc_2wd.toFixed(3)}/mi)` : `State of Colorado 4WD/SUV ($${rateObj.soc_4wd.toFixed(3)}/mi)`;
+    const transportLabel = t.transportSnap === "vehicle" ? "POV Vehicle" : t.transportSnap === "rental" ? "Rental Vehicle" : t.transportSnap === "flight" ? "Flight" : "POV Vehicle";
+    const perDiemSource = t.rateSource === "city" ? `City rate (${t.destCitySnap})` : t.rateSource === "oconus" ? "OCONUS (DoD DTMO)" : "CONUS baseline";
+    const lodgingRateText = t.lodgingRateVaries ? `$${t.lodgingRateMin} to $${t.lodgingRateMax}/night (seasonal)` : `$${t.lodgingRate}/night`;
+    const lines = ["TRAVEL MILEAGE & PER DIEM ESTIMATE", "Travel Estimator | (c) 2026 AJSU", "MEALS AND INCIDENTALS SHOWN SEPARATELY. NO COMBINED M&IE FIGURES.", "-----------------------------------------", `Claimant:   ${claimantName || "[Not provided]"}`, `Email:      ${claimantEmail || "[Not provided]"}`, `Department: ${claimantDept || "[Not provided]"}`, `Location:   ${claimantLocation || "[Not provided]"}`, "-----------------------------------------", `Travel Start:  ${t.checkInSnap}`, `Travel End:    ${t.checkOutSnap}`, `Destination:   ${t.destCitySnap || "[Not specified]"}, ${t.destStateSnap}`, `Duration:      ${t.travelDays} ${t.travelDays === 1 ? 'day' : 'days'}, ${t.nights} ${t.nights === 1 ? 'night' : 'nights'}`, `Overnight:     ${t.isOvernight ? "Yes" : "No"}`, `Transport:     ${transportLabel}`, "-----------------------------------------", "RATE BASIS", `Mileage rate:  ${rateLabel} (CY${t.rateYearSnap})`, `Per diem:      ${perDiemSource}. Lodging ${lodgingRateText}. Meals: B$${t.breakfast}/L$${t.lunch}/D$${t.dinner} + $${t.incidental} incidental`, "-----------------------------------------", "REIMBURSEMENT SUBTOTALS", `Lodging:     ${fmt$(t.lodgingSubtotal)}  (${t.nights} ${t.nights === 1 ? 'night' : 'nights'}, ${lodgingRateText})`, `Meals:       ${fmt$(t.mealsSubtotalNet)}${t.mealsDeduction > 0 ? " (after deductions of " + fmt$(t.mealsDeduction) + ")" : ""}`, `Incidentals: ${fmt$(t.incidentalSubtotal + t.incidentalAllowance)}`, `Mileage:     ${fmt$(t.mileageSubtotal)}  (${t.milesUsed} mi x ${rateLabel})`, "-----------------------------------------", `TOTAL ESTIMATED CLAIM: ${fmt$(t.totalClaim)}`, `  Verification: ${fmt$(t.lodgingSubtotal)} + ${fmt$(t.mealsSubtotalNet)} + ${fmt$(t.incidentalSubtotal + t.incidentalAllowance)} + ${fmt$(t.mileageSubtotal)} = ${fmt$(t.totalClaim)}`, "", "NOTE: Planning estimate only. Actual reimbursement requires supervisor approval", "      and follows applicable agency fiscal policy.", `Generated: ${new Date().toLocaleString()}`];
+    navigator.clipboard.writeText(lines.join("\n")).then(() => triggerToast("Estimate copied. Ready to paste.")).catch(() => triggerToast("Couldn't copy automatically. Select the text above to copy manually."));
+  };
+  const exportLogCsv = () => {
+    const rateObj = getRateObj(logRateYear);
+    const header = ["Date", "Origin", "Destination", "Purpose", "Miles", "Rate Type", "$/Mile", "Trip Type", "Mileage Total", "Notes"];
+    const exportableRows = mileageRows.filter(r => r.miles > 0 || r.destination);
+    if (exportableRows.length === 0) {
+      triggerToast("Add at least one row with miles or a destination before exporting.");
+      return;
+    }
+    let logTotalNumeric = 0; // accumulate as number, not parsed string
+    let logMilesNumeric = 0;
+    const rows = exportableRows.map(r => {
+      const rate = rateObj[r.rateType] || 0;
+      const total = Math.round((r.miles || 0) * rate * 100) / 100;
+      logTotalNumeric += total;
+      logMilesNumeric += r.miles || 0;
+      const rateLabel = r.rateType === "gsa_irs" ? "Federal GSA/IRS" : r.rateType === "soc_2wd" ? "SOC 2WD" : "SOC 4WD";
+      return [r.dateStr || "", r.origin || "", r.destination || "", r.purpose || "", r.miles || 0, rateLabel, rate.toFixed(3), r.tripType === "round_trip" ? "Round Trip" : "One Way", total.toFixed(2), r.notes || ""];
+    });
+    const logTotal = Math.round(logTotalNumeric * 100) / 100;
+    const meta = [["MILEAGE LOG"], ["Claimant", claimantName || ""], ["Email", claimantEmail || ""], ["Department", claimantDept || ""], ["Work Location", claimantLocation || ""], ["Log Period", logStartDate && logEndDate ? `${logStartDate} to ${logEndDate}` : ""], ["Log Notes", logNotes || ""], ["Rate Year", logRateYear], []];
+    // The total is one row of the same ten columns as the header, so Miles and
+    // Mileage Total line up with the rows above it in a spreadsheet. This row
+    // was previously nested one array too deep, which made the quoting pass
+    // treat both footer rows as a single row of two array-valued cells and
+    // emit them as one line of literal `,,,,TOTAL,,,,32.50` text. The rate year
+    // is not repeated here; the meta block above already states it.
+    const totalRow = ["", "", "", "TOTAL", logMilesNumeric.toFixed(1), "", "", "", logTotal.toFixed(2), ""];
+    // Quoting makes the file valid CSV; it does not stop a spreadsheet
+    // evaluating a cell that opens with =, +, - or @, which it does even from
+    // inside quotes. Prefix those with an apostrophe so they import as text.
+    // No cell here is legitimately negative, so the "-" case costs nothing.
+    const quote = v => {
+      const s = String(v);
+      return `"${(/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`;
+    };
+    const csv = [...[...meta, header, ...rows, totalRow].map(r => r.map(quote).join(","))].join("\n");
+    const blob = new Blob([csv], {
+      type: "text/csv"
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mileage-log-${logRateYear}-${claimantName.replace(/\s+/g, "_") || "unnamed"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ─── Tab 1: Estimate Calculator ─────────────────────────────────────────────
+  const renderEstimateTab = () => {
+    const staleRate = estimatedTotals && hasCalculated && (estimatedTotals.rateYearSnap !== selectedRateYear || estimatedTotals.rateTypeSnap !== selectedRateType);
+    const rateObj = getRateObj(selectedRateYear);
+    const rateTypeOptions = [{
+      value: "soc_2wd",
+      label: `State of Colorado 2WD -- $${rateObj.soc_2wd.toFixed(3)}/mi`
+    }, {
+      value: "soc_4wd",
+      label: `State of Colorado 4WD/SUV -- $${rateObj.soc_4wd.toFixed(3)}/mi`
+    }, {
+      value: "gsa_irs",
+      label: `Federal GSA / IRS -- $${rateObj.gsa_irs.toFixed(3)}/mi`
+    }];
+    return /*#__PURE__*/React.createElement("div", null, aiUnlocked && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "flex-end",
+        marginBottom: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setShowParser(true),
+      style: btn("ghost", {
+        fontSize: "13px"
+      })
+    }, /*#__PURE__*/React.createElement(Upload, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Document Import")), /*#__PURE__*/React.createElement("form", {
+      onSubmit: handleCalculate
+    }, /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Travel Dates"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "16px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "ci"
+    }, "Departure Date"), /*#__PURE__*/React.createElement("input", {
+      id: "ci",
+      "data-testid": "check-in-date",
+      type: "date",
+      value: checkInDate,
+      onChange: e => {
+        if (e.target.validity.valid) handleCheckInChange(e.target.value);
+      },
+      onBlur: e => {
+        if (!e.target.validity.valid) setCheckInDate("");
+      },
+      style: inp(),
+      onFocus: inpFocus
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "co"
+    }, "Return Date"), /*#__PURE__*/React.createElement("input", {
+      id: "co",
+      "data-testid": "check-out-date",
+      type: "date",
+      value: checkOutDate,
+      onChange: e => {
+        if (!e.target.validity.valid) return;
+        const val = e.target.value;
+        // Auto-retreat start date if end date would fall before it
+        if (checkInDate && val < checkInDate) {
+          setCheckInDate(val);
+          triggerToast("Start date moved to match end date. Adjust if needed.");
+          const yr = val.split("-")[0];
+          if (MILEAGE_RATES.find(r => r.year === yr)) setSelectedRateYear(yr);
+        }
+        setCheckOutDate(val);
+      },
+      onBlur: e => {
+        if (!e.target.validity.valid) setCheckOutDate("");
+      },
+      style: inp(),
+      onFocus: inpFocus
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "14px",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      id: "overnight",
+      "data-testid": "is-overnight",
+      type: "checkbox",
+      checked: isOvernight,
+      onChange: e => setIsOvernight(e.target.checked),
+      style: {
+        accentColor: C.blue
+      }
+    }), /*#__PURE__*/React.createElement("label", {
+      htmlFor: "overnight",
+      style: {
+        fontSize: "14px",
+        color: C.text,
+        cursor: "pointer"
+      }
+    }, "Overnight travel. Select this for trips that include a hotel stay.")), !isOvernight && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "10px",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      id: "incidental",
+      type: "checkbox",
+      checked: incidentalEligible,
+      onChange: e => setIncidentalEligible(e.target.checked),
+      style: {
+        accentColor: C.blue
+      }
+    }), /*#__PURE__*/React.createElement("label", {
+      htmlFor: "incidental",
+      style: {
+        fontSize: "14px",
+        color: C.text,
+        cursor: "pointer"
+      }
+    }, "Claim same-day incidental allowance ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "12px",
+        color: C.textMuted
+      }
+    }, "(agency-authorized, self-certify)")))), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Destination"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "2fr 1fr",
+        gap: "16px",
+        marginBottom: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "city"
+    }, "Destination City"), /*#__PURE__*/React.createElement("input", {
+      id: "city",
+      "data-testid": "dest-city",
+      type: "text",
+      value: destCityInput,
+      onChange: e => setDestCityInput(e.target.value),
+      placeholder: "e.g. Denver / Aurora, Colorado Springs...",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur,
+      list: "co-cities-list"
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "co-cities-list"
+    }, COLORADO_PER_DIEM_RATES.map(r => /*#__PURE__*/React.createElement("option", {
+      key: r.city,
+      value: r.city
+    })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "state"
+    }, "State"), /*#__PURE__*/React.createElement("select", {
+      id: "state",
+      "data-testid": "dest-state",
+      value: destStateSelect,
+      onChange: e => setDestStateSelect(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, US_STATES.map(s => /*#__PURE__*/React.createElement("option", {
+      key: s,
+      value: s
+    }, s))))), /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: "12px",
+        color: C.textMuted,
+        margin: 0
+      }
+    }, "Rates for 15 Colorado cities are embedded. All other destinations default to CONUS baseline (", CONUS_BASELINE_DESC, ").")), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Trip Details"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "2fr 1fr",
+        gap: "16px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "trip-purpose"
+    }, "Trip Purpose"), /*#__PURE__*/React.createElement("input", {
+      id: "trip-purpose",
+      type: "text",
+      value: tripPurpose,
+      onChange: e => setTripPurpose(e.target.value),
+      placeholder: "e.g. Field visit, Training, Conference...",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "dest-zip"
+    }, "Destination ZIP"), /*#__PURE__*/React.createElement("input", {
+      id: "dest-zip",
+      type: "text",
+      value: destZip,
+      onChange: e => {
+        const z = e.target.value.replace(/\D/g, "").slice(0, 5);
+        setDestZip(z);
+        if (z.length === 5) {
+          const prefix = parseInt(z.slice(0, 3), 10);
+          const isAK = prefix >= 995 && prefix <= 999;
+          const isHI = prefix >= 967 && prefix <= 968;
+          if (isAK && destStateSelect !== "AK") {
+            triggerToast("This ZIP appears to be in Alaska. Set State to AK for correct OCONUS handling.");
+          } else if (isHI && destStateSelect !== "HI") {
+            triggerToast("This ZIP appears to be in Hawaii. Set State to HI for correct OCONUS handling.");
+          }
+        }
+      },
+      placeholder: "e.g. 80907",
+      maxLength: 5,
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })))), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Transport & Mileage"), /*#__PURE__*/React.createElement("div", {
+      role: "radiogroup",
+      "aria-label": "Transport method",
+      style: {
+        display: "flex",
+        gap: "10px",
+        flexWrap: "wrap",
+        marginBottom: "16px"
+      }
+    }, [{
+      value: "vehicle",
+      icon: /*#__PURE__*/React.createElement(Car, {
+        size: 15,
+        "aria-hidden": "true"
+      }),
+      label: "POV Vehicle"
+    }, {
+      value: "rental",
+      icon: /*#__PURE__*/React.createElement(Car, {
+        size: 15,
+        "aria-hidden": "true"
+      }),
+      label: "Rental Vehicle"
+    }, {
+      value: "flight",
+      icon: /*#__PURE__*/React.createElement(Navigation, {
+        size: 15,
+        "aria-hidden": "true"
+      }),
+      label: "Flight"
+    }].map(opt => /*#__PURE__*/React.createElement("button", {
+      key: opt.value,
+      type: "button",
+      "aria-pressed": transportMethod === opt.value,
+      onClick: () => setTransportMethod(opt.value),
+      style: btn(transportMethod === opt.value ? "primary" : "secondary", {
+        fontSize: "13px"
+      })
+    }, opt.icon, " ", opt.label))), (transportMethod === "vehicle" || transportMethod === "rental") && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("select", {
+      id: "rate-combo-select",
+      "aria-hidden": "true",
+      tabIndex: -1,
+      style: {
+        position: "absolute",
+        opacity: 0,
+        pointerEvents: "none",
+        width: 0,
+        height: 0
+      },
+      value: `${selectedRateYear}|${selectedRateType}`,
+      onChange: e => {
+        const [yr, rt] = e.target.value.split("|");
+        setSelectedRateYear(yr);
+        setSelectedRateType(rt);
+      }
+    }, MILEAGE_RATES.flatMap(r => ["soc_2wd", "soc_4wd", "gsa_irs"].map(rt => /*#__PURE__*/React.createElement("option", {
+      key: `${r.year}|${rt}`,
+      value: `${r.year}|${rt}`
+    }, r.year, "|", rt)))), /*#__PURE__*/React.createElement("select", {
+      id: "transport-select",
+      "aria-hidden": "true",
+      tabIndex: -1,
+      style: {
+        position: "absolute",
+        opacity: 0,
+        pointerEvents: "none",
+        width: 0,
+        height: 0
+      },
+      value: transportMethod,
+      onChange: e => setTransportMethod(e.target.value)
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "vehicle"
+    }, "vehicle"), /*#__PURE__*/React.createElement("option", {
+      value: "rental"
+    }, "rental"), /*#__PURE__*/React.createElement("option", {
+      value: "flight"
+    }, "flight")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "16px",
+        marginBottom: "14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "rate-year"
+    }, "Mileage Rate Year"), /*#__PURE__*/React.createElement("select", {
+      id: "rate-year",
+      value: selectedRateYear,
+      onChange: e => setSelectedRateYear(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, MILEAGE_RATES.map(r => /*#__PURE__*/React.createElement("option", {
+      key: r.year,
+      value: r.year
+    }, r.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "rate-type"
+    }, "Reimbursement Rate"), /*#__PURE__*/React.createElement("select", {
+      id: "rate-type",
+      value: selectedRateType,
+      onChange: e => setSelectedRateType(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, rateTypeOptions.map(o => /*#__PURE__*/React.createElement("option", {
+      key: o.value,
+      value: o.value
+    }, o.label))))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "16px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "miles"
+    }, "Miles Driven"), /*#__PURE__*/React.createElement("input", {
+      id: "miles",
+      "data-testid": "manual-miles",
+      type: "number",
+      min: "0",
+      step: "0.1",
+      value: manualMiles === 0 ? "" : manualMiles,
+      onChange: e => setManualMiles(parseFloat(e.target.value) || 0),
+      onBlur: e => {
+        if (e.target.value === "") setManualMiles(0);
+        inpBlur(e);
+      },
+      placeholder: "0.0",
+      style: inp(),
+      onFocus: inpFocus
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "origin-text"
+    }, "Origin Address"), /*#__PURE__*/React.createElement("input", {
+      id: "origin-text",
+      type: "text",
+      value: originText,
+      onChange: e => setOriginText(e.target.value),
+      placeholder: "Starting address",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "dest-text"
+    }, "Destination (for map links)"), /*#__PURE__*/React.createElement("input", {
+      id: "dest-text",
+      type: "text",
+      value: destinationText,
+      onChange: e => setDestinationText(e.target.value),
+      placeholder: "Destination address",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), originText && destinationText && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: "8px",
+        marginTop: "10px",
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("a", {
+      href: `https://www.google.com/maps/dir/${encodeURIComponent(originText)}/${encodeURIComponent(destinationText)}`,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: btn("ghost", {
+        fontSize: "12px",
+        textDecoration: "none"
+      })
+    }, /*#__PURE__*/React.createElement(MapPin, {
+      size: 13,
+      "aria-hidden": "true"
+    }), " Google Maps"), /*#__PURE__*/React.createElement("a", {
+      href: `https://maps.apple.com/?saddr=${encodeURIComponent(originText)}&daddr=${encodeURIComponent(destinationText)}&dirflg=d`,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: btn("ghost", {
+        fontSize: "12px",
+        textDecoration: "none"
+      })
+    }, /*#__PURE__*/React.createElement(MapPin, {
+      size: 13,
+      "aria-hidden": "true"
+    }), " Apple Maps")))), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Claimant Details"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "c-name"
+    }, "Full Name"), /*#__PURE__*/React.createElement("input", {
+      id: "c-name",
+      type: "text",
+      value: claimantName,
+      onChange: e => {
+        setClaimantName(e.target.value);
+        saveStorage({
+          claimantName: e.target.value
+        });
+      },
+      placeholder: "Your full name",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "c-email"
+    }, "Email"), /*#__PURE__*/React.createElement("input", {
+      id: "c-email",
+      type: "email",
+      value: claimantEmail,
+      onChange: e => {
+        setClaimantEmail(e.target.value);
+        saveStorage({
+          claimantEmail: e.target.value
+        });
+      },
+      placeholder: "email@example.com",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "c-dept"
+    }, "Department"), /*#__PURE__*/React.createElement("input", {
+      id: "c-dept",
+      type: "text",
+      value: claimantDept,
+      onChange: e => {
+        setClaimantDept(e.target.value);
+        saveStorage({
+          claimantDept: e.target.value
+        });
+      },
+      placeholder: "Department or division",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "c-loc"
+    }, "Work Location"), /*#__PURE__*/React.createElement("input", {
+      id: "c-loc",
+      type: "text",
+      value: claimantLocation,
+      onChange: e => {
+        setClaimantLocation(e.target.value);
+        saveStorage({
+          claimantLocation: e.target.value
+        });
+      },
+      placeholder: "Office or remote location",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur,
+      list: "office-list"
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "office-list"
+    }, OFFICE_LOCATIONS.map(o => /*#__PURE__*/React.createElement("option", {
+      key: o.name,
+      value: o.name
+    })))))), isOvernight && estimatedTotals && hasCalculated && /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        marginBottom: "10px"
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      id: "meals-prov",
+      type: "checkbox",
+      checked: mealsProvided,
+      onChange: e => {
+        setMealsProvided(e.target.checked);
+        if (!e.target.checked) setMealProvidedFlags([]);
+      },
+      style: {
+        accentColor: C.blue
+      }
+    }), /*#__PURE__*/React.createElement("label", {
+      htmlFor: "meals-prov",
+      style: {
+        fontSize: "14px",
+        fontWeight: "600",
+        color: C.text,
+        cursor: "pointer"
+      }
+    }, "Meals provided by agency/conference (deduct from claim)")), mealsProvided && estimatedTotals.dailyBreakdown.map((day, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        display: "flex",
+        gap: "12px",
+        alignItems: "center",
+        padding: "8px 0",
+        borderTop: `1px solid ${C.border}`,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "13px",
+        color: C.textMuted,
+        minWidth: "160px"
+      }
+    }, day.dateStr), ["b", "l", "d"].map(f => {
+      const label_txt = f === "b" ? "Breakfast" : f === "l" ? "Lunch" : "Dinner";
+      const flags = mealProvidedFlags[i] || {
+        b: false,
+        l: false,
+        d: false
+      };
+      return /*#__PURE__*/React.createElement("label", {
+        key: f,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: "5px",
+          fontSize: "13px",
+          color: C.text,
+          cursor: "pointer"
+        }
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "checkbox",
+        checked: flags[f] || false,
+        style: {
+          accentColor: C.blue
+        },
+        onChange: e => {
+          const updated = [...mealProvidedFlags];
+          updated[i] = {
+            ...(updated[i] || {
+              b: false,
+              l: false,
+              d: false
+            }),
+            [f]: e.target.checked
+          };
+          setMealProvidedFlags(updated);
+        }
+      }), label_txt);
+    })))), /*#__PURE__*/React.createElement("button", {
+      type: "submit",
+      style: btn("primary", {
+        width: "100%",
+        justifyContent: "center",
+        padding: "14px",
+        fontSize: "16px"
+      })
+    }, /*#__PURE__*/React.createElement(Layers, {
+      size: 18,
+      "aria-hidden": "true"
+    }), " Calculate Reimbursement Estimate")), !hasCalculated && /*#__PURE__*/React.createElement("div", {
+      style: {
+        textAlign: "center",
+        padding: "40px 24px",
+        background: C.blueBg,
+        borderRadius: "12px",
+        border: `1px dashed ${C.blueLight}`,
+        marginTop: "8px"
+      }
+    }, /*#__PURE__*/React.createElement(Layers, {
+      size: 32,
+      color: C.blueLight,
+      "aria-hidden": "true",
+      style: {
+        marginBottom: "12px"
+      }
+    }), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 6px",
+        fontSize: "15px",
+        fontWeight: "600",
+        color: C.blue
+      }
+    }, "Ready to estimate"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: "13px",
+        color: C.textMuted
+      }
+    }, "Fill in travel dates and destination above, then calculate your reimbursement.")), /*#__PURE__*/React.createElement("div", {
+      "aria-live": "polite",
+      "aria-atomic": "true",
+      style: {
+        position: "absolute",
+        width: "1px",
+        height: "1px",
+        overflow: "hidden",
+        clip: "rect(0,0,0,0)",
+        whiteSpace: "nowrap"
+      }
+    }, ariaAnnouncement), hasCalculated && estimatedTotals && /*#__PURE__*/React.createElement("div", {
+      id: "results-anchor",
+      style: {
+        marginTop: "24px"
+      }
+    }, staleRate && /*#__PURE__*/React.createElement("div", {
+      "data-testid": "stale-rate-warning",
+      style: {
+        background: C.amberBg,
+        border: `1px solid ${C.amber}`,
+        borderRadius: "10px",
+        padding: "12px 16px",
+        marginBottom: "16px",
+        display: "flex",
+        gap: "10px",
+        alignItems: "center",
+        fontSize: "13px",
+        color: C.amberText
+      }
+    }, /*#__PURE__*/React.createElement(AlertTriangle, {
+      size: 16,
+      "aria-hidden": "true"
+    }), " Rate changed since last calculation. Recalculate to update."), estimatedTotals.oconusWarning && /*#__PURE__*/React.createElement("div", {
+      "data-testid": "oconus-warning",
+      style: {
+        background: C.redBg,
+        border: `1px solid ${C.red}`,
+        borderRadius: "10px",
+        padding: "12px 16px",
+        marginBottom: "16px",
+        fontSize: "13px",
+        color: C.red
+      }
+    }, /*#__PURE__*/React.createElement("strong", null, "Alaska or Hawaii destination:"), " These states use DoD DTMO rates not covered by this tool. Lodging and meals are shown as $0. Look up actual rates at travel.dod.mil."), estimatedTotals.rateSource === "baseline" && !estimatedTotals.oconusWarning && /*#__PURE__*/React.createElement("div", {
+      "data-testid": "conus-baseline-warning",
+      style: {
+        background: C.amberBg,
+        border: `1px solid ${C.amber}`,
+        borderRadius: "10px",
+        padding: "12px 16px",
+        marginBottom: "16px",
+        fontSize: "13px",
+        color: C.amberText
+      }
+    }, "CONUS baseline applied (", CONUS_BASELINE_DESC, "). Destination not found in embedded rate data."), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: `linear-gradient(135deg, ${C.blue}, ${C.blueDark})`,
+        borderRadius: "14px",
+        padding: "24px",
+        marginBottom: "16px",
+        color: C.white,
+        textAlign: "center"
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 4px",
+        fontSize: "13px",
+        opacity: 0.85
+      }
+    }, "Estimated Total Claim"), /*#__PURE__*/React.createElement("p", {
+      "data-testid": "total-claim-amount",
+      style: {
+        margin: 0,
+        fontSize: "40px",
+        fontWeight: "800"
+      }
+    }, fmt$(estimatedTotals.totalClaim)), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "8px 0 0",
+        fontSize: "12px",
+        opacity: 0.75
+      }
+    }, estimatedTotals.travelDays, " ", estimatedTotals.travelDays === 1 ? "day" : "days", " - ", estimatedTotals.nights, " ", estimatedTotals.nights === 1 ? "night" : "nights", !estimatedTotals.isOvernight ? estimatedTotals.travelDays === 1 ? " - Same-day trip" : " - No overnight stay" : "")), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 14px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Reimbursement Subtotals"), [["Lodging", "subtotal-lodging", fmt$(estimatedTotals.lodgingSubtotal), `${estimatedTotals.nights} ${estimatedTotals.nights === 1 ? "night" : "nights"}${estimatedTotals.lodgingRateVaries ? ` at $${estimatedTotals.lodgingRateMin} to $${estimatedTotals.lodgingRateMax}/night (seasonal)` : ` x $${estimatedTotals.lodgingRate}/night`}`], ["Meals", "subtotal-meals", fmt$(estimatedTotals.mealsSubtotalNet), estimatedTotals.mealsDeduction > 0 ? `${fmt$(estimatedTotals.mealsSubtotal)} gross, less ${fmt$(estimatedTotals.mealsDeduction)} provided` : ""], ["Incidentals", "subtotal-incidentals", fmt$(estimatedTotals.incidentalSubtotal + estimatedTotals.incidentalAllowance), `$${estimatedTotals.incidental}/day (75% days: $${estimatedTotals.incidental75})`], ["Mileage", "subtotal-mileage", fmt$(estimatedTotals.mileageSubtotal), transportMethod === "vehicle" ? `${estimatedTotals.milesUsed} mi x $${estimatedTotals.perMileRate.toFixed(3)}` : "Non-vehicle transport"]].map(([name, tid, val, note]) => /*#__PURE__*/React.createElement("div", {
+      key: name,
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        padding: "10px 0",
+        borderBottom: `1px solid ${C.border}`
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "14px",
+        fontWeight: "600",
+        color: C.text
+      }
+    }, name), note && /*#__PURE__*/React.createElement("p", {
+      "data-testid": `${tid}-note`,
+      style: {
+        margin: "2px 0 0",
+        fontSize: "12px",
+        color: C.textMuted
+      }
+    }, note)), /*#__PURE__*/React.createElement("span", {
+      "data-testid": tid,
+      style: {
+        fontSize: "16px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, val))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        padding: "12px 0 0",
+        borderTop: `2px solid ${C.blue}`,
+        marginTop: "4px"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "15px",
+        fontWeight: "800",
+        color: C.text
+      }
+    }, "TOTAL ESTIMATED CLAIM"), /*#__PURE__*/React.createElement("span", {
+      "data-testid": "subtotal-total",
+      style: {
+        fontSize: "22px",
+        fontWeight: "800",
+        color: C.blue
+      }
+    }, fmt$(estimatedTotals.totalClaim)))), estimatedTotals.isOvernight && estimatedTotals.dailyBreakdown.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 14px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Daily Breakdown"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        overflowX: "auto"
+      }
+    }, /*#__PURE__*/React.createElement("table", {
+      style: {
+        width: "100%",
+        borderCollapse: "collapse",
+        fontSize: "13px"
+      }
+    }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+      style: {
+        background: C.blueBg
+      }
+    }, ["Day", "Date", "Type", "Meals", "Incidentals", "Lodging", "Pay Period"].map(h => /*#__PURE__*/React.createElement("th", {
+      key: h,
+      style: {
+        padding: "8px 10px",
+        textAlign: "left",
+        fontWeight: "700",
+        color: C.blue,
+        whiteSpace: "nowrap",
+        borderBottom: `2px solid ${C.blueLight}`
+      }
+    }, h)))), /*#__PURE__*/React.createElement("tbody", null, estimatedTotals.dailyBreakdown.map((day, i) => /*#__PURE__*/React.createElement("tr", {
+      key: i,
+      style: {
+        borderBottom: `1px solid ${C.border}`,
+        background: i % 2 === 0 ? C.white : C.grayBg
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.textMuted
+      }
+    }, day.dayNum), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.text,
+        whiteSpace: "nowrap"
+      }
+    }, day.dateStr), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        background: day.dayType === "Full Day" ? C.greenBg : C.amberBg,
+        color: day.dayType === "Full Day" ? C.greenText : C.amberText,
+        padding: "2px 8px",
+        borderRadius: "12px",
+        fontSize: "11px",
+        fontWeight: "700"
+      }
+    }, day.dayType, " ", day.mealPercent < 100 ? `(${day.mealPercent}%)` : "")), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.text,
+        fontWeight: "600"
+      }
+    }, fmt$(day.mealRateNet)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.text
+      }
+    }, fmt$(day.incidentalRate)), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.text
+      }
+    }, day.hasLodging ? fmt$(day.lodgingRate) : "--"), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "8px 10px",
+        color: C.textMuted,
+        fontSize: "12px"
+      }
+    }, day.payPeriod ? `PP${day.payPeriod.year}-${String(day.payPeriod.periodNum).padStart(2, "0")}` : "--"))))))), estimatedTotals.mappedPayPeriods?.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 12px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Pay Period Mapping"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill,minmax(min(220px,100%),1fr))",
+        gap: "10px"
+      }
+    }, estimatedTotals.mappedPayPeriods.map((pp, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        background: C.blueBg,
+        border: `1px solid ${C.blueLight}`,
+        borderRadius: "8px",
+        padding: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 4px",
+        fontSize: "13px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "PP ", pp.year, "-", String(pp.periodNum).padStart(2, "0")), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 2px",
+        fontSize: "12px",
+        color: C.textMuted
+      }
+    }, pp.startDateStr, " to ", pp.endDateStr), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: "12px",
+        color: C.text
+      }
+    }, "Pay: ", pp.payDate, " | Cutoff: ", pp.cutoffDate))))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: "10px",
+        flexWrap: "wrap",
+        marginTop: "8px"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: copyEstimate,
+      style: btn("secondary")
+    }, /*#__PURE__*/React.createElement(Copy, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Copy Breakdown"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => window.print(),
+      style: btn("secondary")
+    }, /*#__PURE__*/React.createElement(Printer, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Export Voucher")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.amberBg,
+        border: `1px solid ${C.amberLight}`,
+        borderRadius: "10px",
+        padding: "12px 16px",
+        marginTop: "16px",
+        fontSize: "12px",
+        color: C.grayDark
+      }
+    }, /*#__PURE__*/React.createElement("strong", null, "Planning estimate only."), " Actual reimbursement requires supervisor approval and follows agency fiscal policy. Mileage rates: IRS/Colorado OSC (calendar year). Per diem: CONUS GSA reference rates (fiscal year). Not affiliated with any government agency.")));
+  };
+
+  // ─── Tab 2: Route Verifier ──────────────────────────────────────────────────
+  const renderRouteTab = () => {
+    const rateObj = getRateObj(mapRateYear);
+    const mapTotal = Math.round(mapMiles * (rateObj[mapRateType] || 0) * 100) / 100;
+    const buildUrl = platform => {
+      const o = encodeURIComponent(mapOrigin.trim()),
+        d = encodeURIComponent(mapDest.trim());
+      return platform === "apple" ? `https://maps.apple.com/?saddr=${o}&daddr=${d}&dirflg=d` : `https://www.google.com/maps/dir/${o}/${d}`;
+    };
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 16px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Route & Distance Lookup"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "14px",
+        marginBottom: "14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "mo"
+    }, "Origin"), /*#__PURE__*/React.createElement("input", {
+      id: "mo",
+      type: "text",
+      value: mapOrigin,
+      onChange: e => setMapOrigin(e.target.value),
+      placeholder: "Starting address",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "md"
+    }, "Destination"), /*#__PURE__*/React.createElement("input", {
+      id: "md",
+      type: "text",
+      value: mapDest,
+      onChange: e => setMapDest(e.target.value),
+      placeholder: "Destination address",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }))), mapOrigin && mapDest && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: "8px",
+        flexWrap: "wrap",
+        marginBottom: "14px"
+      }
+    }, ["google", "apple"].map(p => /*#__PURE__*/React.createElement("a", {
+      key: p,
+      href: buildUrl(p),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      style: btn("ghost", {
+        fontSize: "13px",
+        textDecoration: "none"
+      })
+    }, /*#__PURE__*/React.createElement(MapPin, {
+      size: 13,
+      "aria-hidden": "true"
+    }), " ", p === "google" ? "Google Maps" : "Apple Maps"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: "14px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "mm"
+    }, "Miles (enter from map)"), /*#__PURE__*/React.createElement("input", {
+      id: "mm",
+      type: "number",
+      min: "0",
+      step: "0.1",
+      value: mapMiles || "",
+      onChange: e => setMapMiles(parseFloat(e.target.value) || 0),
+      placeholder: "0.0",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "mry"
+    }, "Rate Year"), /*#__PURE__*/React.createElement("select", {
+      id: "mry",
+      value: mapRateYear,
+      onChange: e => setMapRateYear(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, MILEAGE_RATES.map(r => /*#__PURE__*/React.createElement("option", {
+      key: r.year,
+      value: r.year
+    }, r.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "mrt"
+    }, "Reimbursement Rate"), /*#__PURE__*/React.createElement("select", {
+      id: "mrt",
+      value: mapRateType,
+      onChange: e => setMapRateType(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, /*#__PURE__*/React.createElement("option", {
+      value: "soc_2wd"
+    }, "SOC 2WD -- ", fmt$c(rateObj.soc_2wd), "/mi"), /*#__PURE__*/React.createElement("option", {
+      value: "soc_4wd"
+    }, "SOC 4WD/SUV -- ", fmt$c(rateObj.soc_4wd), "/mi"), /*#__PURE__*/React.createElement("option", {
+      value: "gsa_irs"
+    }, "Federal GSA/IRS -- ", fmt$c(rateObj.gsa_irs), "/mi")))), mapMiles > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "16px",
+        background: C.blueBg,
+        border: `1px solid ${C.blueLight}`,
+        borderRadius: "10px",
+        padding: "16px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 4px",
+        fontSize: "13px",
+        color: C.textMuted
+      }
+    }, "Estimated reimbursement"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: "13px",
+        color: C.grayDark
+      }
+    }, mapMiles, " mi x ", fmt$c(rateObj[mapRateType]), "/mi")), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+        gap: "8px"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "28px",
+        fontWeight: "800",
+        color: C.blue
+      }
+    }, fmt$(mapTotal)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setManualMiles(mapMiles);
+        setSelectedRateYear(mapRateYear);
+        setSelectedRateType(mapRateType);
+        if (mapOrigin) setOriginText(mapOrigin);
+        if (mapDest) setDestinationText(mapDest);
+        setActiveTab("estimate");
+        triggerToast(`${mapMiles} miles applied to Estimate Calculator.`);
+      },
+      style: btn("primary", {
+        fontSize: "13px"
+      })
+    }, /*#__PURE__*/React.createElement(Navigation, {
+      size: 13,
+      "aria-hidden": "true"
+    }), " Apply Distance")))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...card(),
+        fontSize: "13px",
+        color: C.textMuted
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 8px",
+        fontWeight: "600",
+        color: C.text
+      }
+    }, "How to verify a route"), /*#__PURE__*/React.createElement("ol", {
+      style: {
+        margin: 0,
+        paddingLeft: "18px",
+        lineHeight: "1.8"
+      }
+    }, /*#__PURE__*/React.createElement("li", null, "Enter origin and destination addresses above."), /*#__PURE__*/React.createElement("li", null, "Open Google or Apple Maps via the buttons above. The route pre-loads automatically."), /*#__PURE__*/React.createElement("li", null, "Read the driving distance from the map and enter it in the Miles field."), /*#__PURE__*/React.createElement("li", null, "Select the rate year and class that match your trip."), /*#__PURE__*/React.createElement("li", null, "Your mileage reimbursement appears instantly below."))));
+  };
+
+  // ─── Tab 3: State Rates Table ───────────────────────────────────────────────
+  const renderRatesTab = () => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 4px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "Mileage Reimbursement Rates"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 16px",
+      fontSize: "12px",
+      color: C.textMuted
+    }
+  }, "CY2025 and CY2026 rates. Calendar Year effective dates (Jan 1 each year). Verify annually: IRS Notice (mileage) and Colorado OSC (SOC rates)."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "13px"
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: C.blueBg
+    }
+  }, ["Rate Class", "CY2025", "CY2026", "Authority"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: "10px 14px",
+      textAlign: "left",
+      fontWeight: "700",
+      color: C.blue,
+      borderBottom: `2px solid ${C.blueLight}`
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, [["Federal GSA / IRS POV", "$0.700/mi", "$0.725/mi", "IRS Notice (annual)"], ["State of Colorado 2WD", "$0.630/mi", "$0.650/mi", "CRS 24-9-104 (90% of IRS)"], ["State of Colorado 4WD/SUV", "$0.670/mi", "$0.690/mi", "CRS 24-9-104 (95% of IRS)"]].map((row, i) => /*#__PURE__*/React.createElement("tr", {
+    key: i,
+    style: {
+      borderBottom: `1px solid ${C.border}`,
+      background: i % 2 === 0 ? C.white : C.grayBg
+    }
+  }, row.map((cell, j) => /*#__PURE__*/React.createElement("td", {
+    key: j,
+    style: {
+      padding: "10px 14px",
+      color: j === 0 ? C.text : C.blue,
+      fontWeight: j === 0 ? "600" : "700"
+    }
+  }, cell)))))))), /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 4px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "Federal M&IE Tier Breakdown"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 16px",
+      fontSize: "12px",
+      color: C.textMuted
+    }
+  }, "FY2025 and FY2026 rates (unchanged). Federal Fiscal Year effective dates (Oct 1 each year). Standard CONUS M&IE: $", STANDARD_TIER.totalPerDiem, " total ($", STANDARD_MEALS, " meals + $", STANDARD_TIER.incidental, " incidental). Incidental is always $", STANDARD_TIER.incidental, " across all tiers."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "13px"
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: C.blueBg
+    }
+  }, ["Per Diem Tier", "Breakfast", "Lunch", "Dinner", "Incidental", "75% Day (meals+inc)"].map(h => /*#__PURE__*/React.createElement("th", {
+    key: h,
+    style: {
+      padding: "10px 12px",
+      textAlign: "left",
+      fontWeight: "700",
+      color: C.blue,
+      borderBottom: `2px solid ${C.blueLight}`
+    }
+  }, h)))), /*#__PURE__*/React.createElement("tbody", null, MEAL_PER_DIEM_RATES.map((tier, i) => {
+    const meals75 = Math.round((tier.totalPerDiem - tier.incidental) * 0.75 * 100) / 100;
+    const inc75 = Math.round(tier.incidental * 0.75 * 100) / 100;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: i,
+      style: {
+        borderBottom: `1px solid ${C.border}`,
+        background: i % 2 === 0 ? C.white : C.grayBg
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "$", tier.totalPerDiem), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        color: C.text
+      }
+    }, "$", tier.breakfast), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        color: C.text
+      }
+    }, "$", tier.lunch), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        color: C.text
+      }
+    }, "$", tier.dinner), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        color: C.text
+      }
+    }, "$", tier.incidental), /*#__PURE__*/React.createElement("td", {
+      style: {
+        padding: "10px 12px",
+        color: C.grayDark,
+        fontSize: "12px"
+      }
+    }, "$", meals75, " meals + $", inc75, " inc"));
+  }))))), /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 4px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "State of Colorado Embedded Per Diem Cities"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 16px",
+      fontSize: "12px",
+      color: C.textMuted
+    }
+  }, "15 Colorado destinations with FY2026 GSA rates. All other destinations use CONUS baseline (", CONUS_BASELINE_DESC, "). Lodging is seasonal: the rate applied depends on the month of travel. The M&IE tier varies by destination."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(min(260px,100%),1fr))",
+      gap: "10px"
+    }
+  }, COLORADO_PER_DIEM_RATES.map((r, i) => {
+    const lo = Math.min(...r.seasons.map(s => s.l)),
+      hi = Math.max(...r.seasons.map(s => s.l));
+    const tier = MEAL_PER_DIEM_RATES.find(m => m.totalPerDiem === r.mie) || STANDARD_TIER;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        background: C.grayBg,
+        border: `1px solid ${C.border}`,
+        borderRadius: "8px",
+        padding: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 4px",
+        fontSize: "13px",
+        fontWeight: "700",
+        color: C.text
+      }
+    }, r.city), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: "13px",
+        color: C.blue,
+        fontWeight: "600"
+      }
+    }, "$", lo === hi ? lo : `${lo}-${hi}`, " lodging (seasonal) / $", r.mie - tier.incidental, " meals + $", tier.incidental, " incidental per day"));
+  }))));
+
+  // ─── Tab 4: Daily Mileage Tracker ───────────────────────────────────────────
+  const renderMileageTab = () => {
+    const rateObj = getRateObj(logRateYear);
+    const logTotal = mileageRows.reduce((s, r) => {
+      const rate = rateObj[r.rateType] || 0;
+      return s + Math.round((r.miles || 0) * rate * 100) / 100;
+    }, 0);
+    return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: "0 0 4px",
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Claimant Details"), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 14px",
+        fontSize: "12px",
+        color: C.textMuted
+      }
+    }, "Shared with Estimate Calculator. Changes here update both tabs."), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "ml-name"
+    }, "Full Name"), /*#__PURE__*/React.createElement("input", {
+      id: "ml-name",
+      type: "text",
+      value: claimantName,
+      onChange: e => {
+        setClaimantName(e.target.value);
+        saveStorage({
+          claimantName: e.target.value
+        });
+      },
+      placeholder: "Your full name",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "ml-email"
+    }, "Email"), /*#__PURE__*/React.createElement("input", {
+      id: "ml-email",
+      type: "email",
+      value: claimantEmail,
+      onChange: e => {
+        setClaimantEmail(e.target.value);
+        saveStorage({
+          claimantEmail: e.target.value
+        });
+      },
+      placeholder: "email@example.com",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "ml-dept"
+    }, "Department"), /*#__PURE__*/React.createElement("input", {
+      id: "ml-dept",
+      type: "text",
+      value: claimantDept,
+      onChange: e => {
+        setClaimantDept(e.target.value);
+        saveStorage({
+          claimantDept: e.target.value
+        });
+      },
+      placeholder: "Department or division",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "ml-loc"
+    }, "Work Location"), /*#__PURE__*/React.createElement("input", {
+      id: "ml-loc",
+      type: "text",
+      value: claimantLocation,
+      onChange: e => {
+        setClaimantLocation(e.target.value);
+        saveStorage({
+          claimantLocation: e.target.value
+        });
+      },
+      placeholder: "Office location",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur,
+      list: "office-list-ml"
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "office-list-ml"
+    }, OFFICE_LOCATIONS.map(o => /*#__PURE__*/React.createElement("option", {
+      key: o.name,
+      value: o.name
+    }))))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "12px",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "log-start"
+    }, "Period Start Date"), /*#__PURE__*/React.createElement("input", {
+      id: "log-start",
+      type: "date",
+      value: logStartDate,
+      onChange: e => setLogStartDate(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "log-end"
+    }, "Period End Date"), /*#__PURE__*/React.createElement("input", {
+      id: "log-end",
+      type: "date",
+      value: logEndDate,
+      onChange: e => setLogEndDate(e.target.value),
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "log-notes"
+    }, "Log Notes ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: "normal",
+        color: C.textMuted
+      }
+    }, "(max 75 chars)")), /*#__PURE__*/React.createElement("input", {
+      id: "log-notes",
+      type: "text",
+      value: logNotes,
+      maxLength: 75,
+      onChange: e => {
+        setLogNotes(e.target.value);
+        saveStorage({
+          logNotes: e.target.value
+        });
+      },
+      placeholder: "Optional log-level note (e.g. 'Field visits week of July 7')",
+      style: inp(),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...card(),
+        display: "flex",
+        alignItems: "center",
+        gap: "16px",
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: "0 0 auto"
+      }
+    }, /*#__PURE__*/React.createElement("label", {
+      style: label(),
+      htmlFor: "lry"
+    }, "Mileage Rate Year"), /*#__PURE__*/React.createElement("select", {
+      id: "lry",
+      value: logRateYear,
+      onChange: e => {
+        setLogRateYear(e.target.value);
+        saveStorage({
+          logRateYear: e.target.value
+        });
+      },
+      style: inp({
+        width: "auto",
+        minWidth: "300px"
+      }),
+      onFocus: inpFocus,
+      onBlur: inpBlur
+    }, MILEAGE_RATES.map(r => /*#__PURE__*/React.createElement("option", {
+      key: r.year,
+      value: r.year
+    }, r.label)))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        display: "flex",
+        gap: "10px",
+        justifyContent: "flex-end",
+        flexWrap: "wrap",
+        alignItems: "flex-end"
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: addRow,
+      style: btn("primary")
+    }, /*#__PURE__*/React.createElement(Plus, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Add Row"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        const rObj = getRateObj(logRateYear);
+        const notesSuffix = r => r.notes ? " | " + r.notes : "";
+        const logLines = ["MILEAGE LOG | " + (claimantName || "[Claimant]") + " | " + logRateYear, "Department: " + (claimantDept || "") + " | Location: " + (claimantLocation || ""), "Period: " + (logStartDate || "not set") + " to " + (logEndDate || "not set"), "Notes: " + (logNotes || ""), "---", ...mileageRows.filter(r => r.miles > 0 || r.destination).map((r, i) => {
+          const rate = rObj[r.rateType] || 0;
+          const tot = Math.round((r.miles || 0) * rate * 100) / 100;
+          return "Row " + (i + 1) + ": " + (r.dateStr || "") + " | " + (r.origin || "") + " -> " + (r.destination || "") + " | " + (r.miles || 0) + "mi x $" + rate.toFixed(3) + " = $" + tot.toFixed(2) + notesSuffix(r);
+        }), "---", "Total: $" + mileageRows.reduce((s, r) => {
+          const rt = rObj[r.rateType] || 0;
+          return s + Math.round((r.miles || 0) * rt * 100) / 100;
+        }, 0).toFixed(2)];
+        navigator.clipboard.writeText(logLines.join("\n")).then(() => triggerToast("Log copied. Ready to paste.")).catch(() => triggerToast("Copy failed. Select and copy manually."));
+      },
+      style: btn("secondary")
+    }, /*#__PURE__*/React.createElement(Copy, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Copy Log Data"), /*#__PURE__*/React.createElement("button", {
+      onClick: exportLogCsv,
+      style: btn("secondary")
+    }, /*#__PURE__*/React.createElement(Download, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Export CSV"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => triggerConfirm("Clear all rows? This can't be undone.", () => setMileageRows([newRow()]), "Clear all", "Keep rows"),
+      style: btn("secondary", {
+        color: C.red
+      })
+    }, /*#__PURE__*/React.createElement(Trash2, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Clear All"))), mileageRows.map((row, idx) => {
+      const rate = rateObj[row.rateType] || 0;
+      const rowTot = Math.round((row.miles || 0) * rate * 100) / 100;
+      return /*#__PURE__*/React.createElement("div", {
+        key: row.id,
+        style: {
+          ...card(),
+          padding: "16px"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "12px"
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: "13px",
+          fontWeight: "700",
+          color: C.blue
+        }
+      }, "Row ", idx + 1, row.tripType === "round_trip" ? /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: "11px",
+          fontWeight: "600",
+          background: C.blueBg,
+          color: C.blue,
+          borderRadius: "10px",
+          padding: "1px 7px",
+          marginLeft: "6px"
+        }
+      }, "Round Trip") : null), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: "12px"
+        }
+      }, rowTot > 0 && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: "16px",
+          fontWeight: "800",
+          color: C.blue
+        }
+      }, fmt$(rowTot)), /*#__PURE__*/React.createElement("button", {
+        onClick: () => removeRow(idx),
+        style: {
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: C.red,
+          padding: "10px",
+          minWidth: "44px",
+          minHeight: "44px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        },
+        "aria-label": "Remove row"
+      }, /*#__PURE__*/React.createElement(Trash2, {
+        size: 16
+      })))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "10px",
+          marginBottom: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rd${idx}`
+      }, "Date"), /*#__PURE__*/React.createElement("input", {
+        id: `rd${idx}`,
+        "aria-label": `Row ${idx + 1} date`,
+        type: "date",
+        value: row.dateStr,
+        onChange: e => updateRow(idx, "dateStr", e.target.value),
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rmi${idx}`
+      }, "Miles"), /*#__PURE__*/React.createElement("input", {
+        id: `rmi${idx}`,
+        "aria-label": `Row ${idx + 1} miles`,
+        type: "number",
+        min: "0",
+        step: "0.1",
+        value: row.miles || "",
+        onChange: e => updateRow(idx, "miles", parseFloat(e.target.value) || 0),
+        onBlur: e => {
+          inpBlur(e);
+          // Auto-append blank row when miles entered on last row
+          if ((parseFloat(e.target.value) || 0) > 0 && idx === mileageRows.length - 1) addRow();
+        },
+        placeholder: "0.0",
+        style: inp(),
+        onFocus: inpFocus
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rrt${idx}`
+      }, "Rate Class"), /*#__PURE__*/React.createElement("select", {
+        id: `rrt${idx}`,
+        "aria-label": `Row ${idx + 1} rate class`,
+        value: row.rateType,
+        onChange: e => updateRow(idx, "rateType", e.target.value),
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      }, /*#__PURE__*/React.createElement("option", {
+        value: "soc_2wd"
+      }, "SOC 2WD -- ", fmt$c(rateObj.soc_2wd), "/mi"), /*#__PURE__*/React.createElement("option", {
+        value: "soc_4wd"
+      }, "SOC 4WD/SUV -- ", fmt$c(rateObj.soc_4wd), "/mi"), /*#__PURE__*/React.createElement("option", {
+        value: "gsa_irs"
+      }, "Federal GSA/IRS -- ", fmt$c(rateObj.gsa_irs), "/mi")))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "10px",
+          marginBottom: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `ror${idx}`
+      }, "Origin"), /*#__PURE__*/React.createElement("input", {
+        id: `ror${idx}`,
+        "aria-label": `Row ${idx + 1} origin`,
+        type: "text",
+        value: row.origin,
+        onChange: e => updateRow(idx, "origin", e.target.value),
+        placeholder: "Starting point",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur,
+        list: "office-list3"
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rde${idx}`
+      }, "Destination"), /*#__PURE__*/React.createElement("input", {
+        id: `rde${idx}`,
+        "aria-label": `Row ${idx + 1} destination`,
+        type: "text",
+        value: row.destination,
+        onChange: e => updateRow(idx, "destination", e.target.value),
+        placeholder: "End point",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      }))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: "10px",
+          marginBottom: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rpu${idx}`
+      }, "Purpose"), /*#__PURE__*/React.createElement("input", {
+        id: `rpu${idx}`,
+        "aria-label": `Row ${idx + 1} purpose`,
+        type: "text",
+        value: row.purpose,
+        onChange: e => updateRow(idx, "purpose", e.target.value),
+        placeholder: "Business purpose of travel",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rtt${idx}`
+      }, "Trip Type"), /*#__PURE__*/React.createElement("select", {
+        id: `rtt${idx}`,
+        "aria-label": `Row ${idx + 1} trip type`,
+        value: row.tripType,
+        onChange: e => updateRow(idx, "tripType", e.target.value),
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      }, /*#__PURE__*/React.createElement("option", {
+        value: "one_way"
+      }, "One Way"), /*#__PURE__*/React.createElement("option", {
+        value: "round_trip"
+      }, "Round Trip")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `rno${idx}`
+      }, "Notes ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: "normal",
+          color: C.textMuted
+        }
+      }, "(max 75 chars: receipt number, cost center, or clarification)")), /*#__PURE__*/React.createElement("input", {
+        id: `rno${idx}`,
+        type: "text",
+        value: row.notes || "",
+        maxLength: 75,
+        onChange: e => updateRow(idx, "notes", e.target.value),
+        placeholder: "Optional: receipt number, cost center code, or agency note",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })));
+    }), /*#__PURE__*/React.createElement("datalist", {
+      id: "office-list3"
+    }, OFFICE_LOCATIONS.map(o => /*#__PURE__*/React.createElement("option", {
+      key: o.name,
+      value: o.name
+    }))), mileageRows.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: `linear-gradient(135deg,${C.blue},${C.blueDark})`,
+        borderRadius: "12px",
+        padding: "20px",
+        color: C.white,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "16px"
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: "0 0 2px",
+        fontSize: "13px",
+        opacity: 0.8
+      }
+    }, "Mileage Log Total -- ", logRateYear), /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: "12px",
+        opacity: 0.65
+      }
+    }, mileageRows.filter(r => r.miles > 0).length, " trips logged")), /*#__PURE__*/React.createElement("span", {
+      "data-testid": "log-total-amount",
+      style: {
+        fontSize: "32px",
+        fontWeight: "800"
+      }
+    }, fmt$(logTotal))), /*#__PURE__*/React.createElement("div", {
+      style: card()
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "14px"
+      }
+    }, /*#__PURE__*/React.createElement("h3", {
+      style: {
+        margin: 0,
+        fontSize: "15px",
+        fontWeight: "700",
+        color: C.blue
+      }
+    }, "Parking Fees"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setParkingRows(r => [...r, newParkingRow()]),
+      style: btn("ghost", {
+        fontSize: "13px"
+      })
+    }, /*#__PURE__*/React.createElement(Plus, {
+      size: 14,
+      "aria-hidden": "true"
+    }), " Add Parking Entry")), parkingRows.length === 0 && /*#__PURE__*/React.createElement("p", {
+      style: {
+        fontSize: "13px",
+        color: C.textMuted,
+        margin: 0
+      }
+    }, "No parking fees recorded. Parking is reported separately and is never added to the mileage total."), parkingRows.map((pr, pi) => {
+      const pkTot = Math.round((pr.amount || 0) * 100) / 100;
+      return /*#__PURE__*/React.createElement("div", {
+        key: pr.id,
+        style: {
+          borderTop: `1px solid ${C.border}`,
+          paddingTop: "12px",
+          marginTop: "12px"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: "13px",
+          fontWeight: "700",
+          color: C.grayDark
+        }
+      }, "Parking ", pi + 1), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: "10px"
+        }
+      }, pkTot > 0 && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: "700",
+          color: C.blue
+        }
+      }, fmt$(pkTot)), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setParkingRows(r => r.filter((_, i) => i !== pi)),
+        style: {
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: C.red,
+          padding: "10px",
+          minWidth: "44px",
+          minHeight: "44px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        },
+        "aria-label": "Remove parking entry"
+      }, /*#__PURE__*/React.createElement(Trash2, {
+        size: 15
+      })))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `pk-date${pi}`
+      }, "Date"), /*#__PURE__*/React.createElement("input", {
+        id: `pk-date${pi}`,
+        "aria-label": `Parking row ${pi + 1} date`,
+        type: "date",
+        value: pr.dateStr,
+        onChange: e => setParkingRows(r => r.map((x, i) => i === pi ? {
+          ...x,
+          dateStr: e.target.value
+        } : x)),
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `pk-loc${pi}`
+      }, "Location / Description"), /*#__PURE__*/React.createElement("input", {
+        id: `pk-loc${pi}`,
+        "aria-label": `Parking row ${pi + 1} location`,
+        type: "text",
+        value: pr.location,
+        onChange: e => setParkingRows(r => r.map((x, i) => i === pi ? {
+          ...x,
+          location: e.target.value
+        } : x)),
+        placeholder: "Address or venue name",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `pk-amt${pi}`
+      }, "Amount ($)"), /*#__PURE__*/React.createElement("input", {
+        id: `pk-amt${pi}`,
+        "aria-label": `Parking row ${pi + 1} amount`,
+        type: "number",
+        min: "0",
+        step: "0.01",
+        value: pr.amount || "",
+        onChange: e => setParkingRows(r => r.map((x, i) => i === pi ? {
+          ...x,
+          amount: parseFloat(e.target.value) || 0
+        } : x)),
+        placeholder: "0.00",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      }))), /*#__PURE__*/React.createElement("div", {
+        style: {
+          marginTop: "10px"
+        }
+      }, /*#__PURE__*/React.createElement("label", {
+        style: label(),
+        htmlFor: `pk-note${pi}`
+      }, "Notes ", /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: "normal",
+          color: C.textMuted
+        }
+      }, "(optional)")), /*#__PURE__*/React.createElement("input", {
+        id: `pk-note${pi}`,
+        "aria-label": `Parking row ${pi + 1} notes`,
+        type: "text",
+        value: pr.notes,
+        onChange: e => setParkingRows(r => r.map((x, i) => i === pi ? {
+          ...x,
+          notes: e.target.value
+        } : x)),
+        placeholder: "Receipt number, garage name, etc.",
+        style: inp(),
+        onFocus: inpFocus,
+        onBlur: inpBlur
+      })));
+    }), parkingRows.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        borderTop: `2px solid ${C.border}`,
+        marginTop: "14px",
+        paddingTop: "12px"
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: "14px",
+        fontWeight: "700",
+        color: C.text
+      }
+    }, "Parking Total ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: "400",
+        color: C.textMuted,
+        fontSize: "12px"
+      }
+    }, "(separate from mileage. Do not combine.)")), /*#__PURE__*/React.createElement("span", {
+      "data-testid": "parking-total-amount",
+      style: {
+        fontSize: "20px",
+        fontWeight: "800",
+        color: C.blue
+      }
+    }, fmt$(parkingRows.reduce((s, r) => s + Math.round((r.amount || 0) * 100) / 100, 0))))));
+  };
+  const renderHelpTab = () => /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 14px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "How to Use This Tool"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: "13px",
+      color: C.textMuted,
+      marginBottom: "16px",
+      lineHeight: "1.7"
+    }
+  }, "This estimator calculates travel reimbursements under the Federal Travel Regulation (41 CFR 301-11) and Colorado Fiscal Rule 5-1. It is a planning tool only. Actual reimbursement requires supervisor approval and follows your agency's fiscal policy."), [{
+    q: "What is the 75% rule?",
+    a: "The first and last days of any overnight trip are reimbursed at 75% of the full daily per diem rate. For the standard $68 tier: $47.25 meals + $3.75 incidental. The 75% applies regardless of departure or arrival time. Meals and incidentals are always shown separately. They are never combined into a single figure."
+  }, {
+    q: "When are meals deducted?",
+    a: "When a meal is provided by the agency, conference, or a third party, the published component rate for that meal is deducted. Breakfast: $16, Lunch: $19, Dinner: $28 (standard tier). Continental breakfast at a hotel does not count as a provided breakfast. Full breakfast explicitly on the conference agenda does count."
+  }, {
+    q: "What is the same-day incidental allowance?",
+    a: "On trips with no overnight stay, a $5 incidental allowance may apply if your agency authorizes it under Colorado Fiscal Rule 5-1. You must self-certify eligibility. This tool does not assume eligibility automatically."
+  }, {
+    q: "Which mileage rate applies to my trip?",
+    a: "Use the State of Colorado 2WD rate unless you drove a 4WD or SUV (use SOC 4WD) or your agency requires the Federal GSA/IRS rate. The rate year is the calendar year of travel, not the fiscal year. A trip in November 2026 uses CY2026 mileage rates even though it falls in FY2027 per diem."
+  }, {
+    q: "What does the October to December rate overlap mean?",
+    a: "Mileage rates are calendar year (CY). Per diem rates are federal fiscal year (FY), effective October 1. Travel in October through December uses the current calendar year mileage rate AND the new fiscal year per diem rate. These are independent lookups. Never assume they are the same year."
+  }, {
+    q: "Are parking fees included in my mileage total?",
+    a: "No. Parking is a separate expense and is always reported as its own line item. It is never added to mileage reimbursement. Use the Parking Fees section in the Daily Mileage Tracker tab to log parking separately."
+  }, {
+    q: "What does round-trip mean for mileage?",
+    a: "This app does not auto-double miles. Enter the actual miles driven per trip. Mark the row as Round Trip for your records, but the miles field is the total you drove, not one-way distance."
+  }, {
+    q: "What is OCONUS?",
+    a: "OCONUS means Outside the Continental United States. This applies specifically to Alaska and Hawaii for domestic travel. These states use DoD DTMO rates, not GSA/FTR rates. This tool sets lodging and meals to $0 for AK/HI destinations and flags the limitation. Look up actual rates at travel.dod.mil."
+  }, {
+    q: "How do I use the Route Verifier to confirm mileage?",
+    a: "Open the Route Verifier tab, enter your origin and destination, then click Google Maps or Apple Maps to open the route in a mapping app. Read the driving distance from the map, enter it in the Miles field, and select your rate class. The reimbursement amount calculates instantly. Click Apply Distance to send the verified miles and rate directly to the Estimate Calculator tab."
+  }, {
+    q: "How do I export or share my estimate?",
+    a: "After calculating, use Export Voucher to open the browser print dialog. You can print or save as PDF. Use Copy Breakdown to copy a structured text summary with rate basis, subtotals, and a bridge verification line to your clipboard for pasting into an email or voucher system. In the Daily Mileage Tracker, use Copy Log Data for a text summary or Export CSV for a spreadsheet-compatible file."
+  }].map(({
+    q,
+    a
+  }, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      borderTop: `1px solid ${C.border}`,
+      paddingTop: "14px",
+      marginTop: "14px"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 6px",
+      fontSize: "13px",
+      fontWeight: "700",
+      color: C.text
+    }
+  }, q), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: "13px",
+      color: C.textMuted,
+      lineHeight: "1.7"
+    }
+  }, a)))), /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 14px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "Rate Quick Reference"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 8px",
+      fontSize: "13px",
+      fontWeight: "700",
+      color: C.grayDark
+    }
+  }, "Mileage Rates (Calendar Year)"), [["POV 2WD (SOC)", "$0.650/mi", "$0.630/mi"], ["4WD / SUV (SOC)", "$0.690/mi", "$0.670/mi"], ["Federal GSA / IRS", "$0.725/mi", "$0.700/mi"]].map(([cls, cy26, cy25]) => /*#__PURE__*/React.createElement("div", {
+    key: cls,
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "6px 0",
+      borderBottom: `1px solid ${C.border}`,
+      fontSize: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.text
+    }
+  }, cls), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.blue,
+      fontWeight: "600"
+    }
+  }, "CY26: ", cy26, ' | ', "CY25: ", cy25)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 8px",
+      fontSize: "13px",
+      fontWeight: "700",
+      color: C.grayDark
+    }
+  }, "Per Diem Tiers (Federal Fiscal Year)"), [[68, 16, 19, 28], [74, 18, 20, 31], [80, 20, 22, 33], [86, 22, 23, 36], [92, 23, 26, 38]].map(([t, b, l, d]) => /*#__PURE__*/React.createElement("div", {
+    key: t,
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      padding: "6px 0",
+      borderBottom: `1px solid ${C.border}`,
+      fontSize: "12px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.text
+    }
+  }, "$", t, " tier"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.textMuted
+    }
+  }, "B$", b, " / L$", l, " / D$", d, " + $5 inc")))))), /*#__PURE__*/React.createElement("div", {
+    style: card()
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: "0 0 12px",
+      fontSize: "15px",
+      fontWeight: "700",
+      color: C.blue
+    }
+  }, "Policy References"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "13px",
+      color: C.textMuted,
+      lineHeight: "1.9"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 4px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, "41 CFR 301-11"), ": Federal Travel Regulation, per diem authority"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 4px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, "Colorado Fiscal Rule 5-1"), ": Same-day incidental allowance"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 4px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, "CRS 24-9-104"), ": Colorado mileage rate authority (SOC rates)"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 4px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, "IRS Notice (annual)"), ": Federal mileage rate, effective January 1"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 16px"
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, "DoD DTMO"), ": OCONUS (AK/HI) per diem rates at travel.dod.mil"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      padding: "12px",
+      background: C.amberBg,
+      borderRadius: "8px",
+      color: C.amberText,
+      fontSize: "12px"
+    }
+  }, "This tool provides planning estimates only. It is not affiliated with any government agency and does not produce official travel records. Actual reimbursement is subject to supervisor approval and applicable agency fiscal policy."))));
+  const tabs = [{
+    id: "estimate",
+    label: "Estimate Calculator",
+    icon: /*#__PURE__*/React.createElement(Layers, {
+      size: 15,
+      "aria-hidden": "true"
+    })
+  }, {
+    id: "map",
+    label: "Route Verifier",
+    icon: /*#__PURE__*/React.createElement(MapPin, {
+      size: 15,
+      "aria-hidden": "true"
+    })
+  }, {
+    id: "data",
+    label: "State Rates Table",
+    icon: /*#__PURE__*/React.createElement(FileSpreadsheet, {
+      size: 15,
+      "aria-hidden": "true"
+    })
+  }, {
+    id: "mileage",
+    label: "Daily Mileage Tracker",
+    icon: /*#__PURE__*/React.createElement(Car, {
+      size: 15,
+      "aria-hidden": "true"
+    })
+  }, {
+    id: "help",
+    label: "Help & Guide",
+    icon: /*#__PURE__*/React.createElement(HelpCircle, {
+      size: 15,
+      "aria-hidden": "true"
+    })
+  }];
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      background: C.pageBg,
+      display: "flex",
+      flexDirection: "column",
+      fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("header", {
+    id: "app-header",
+    style: {
+      background: `linear-gradient(135deg,${C.blue},${C.blueDark})`,
+      color: C.white,
+      padding: "20px 24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: "900px",
+      margin: "0 auto",
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: "16px",
+      justifyContent: "space-between"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "inline-block",
+      background: C.amber,
+      color: C.white,
+      fontSize: "11px",
+      fontWeight: "800",
+      letterSpacing: "0.05em",
+      padding: "3px 10px",
+      borderRadius: "20px",
+      marginBottom: "8px"
+    }
+  }, "Planning Estimate Only"), /*#__PURE__*/React.createElement("h1", {
+    style: {
+      margin: "0 0 4px",
+      fontSize: "22px",
+      fontWeight: "800",
+      display: "flex",
+      alignItems: "center",
+      gap: "8px"
+    }
+  }, /*#__PURE__*/React.createElement(Navigation, {
+    size: 22,
+    "aria-hidden": "true"
+  }), " Travel Mileage & Per Diem Estimator"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: "13px",
+      opacity: 0.85
+    }
+  }, "Colorado travel reimbursement estimates for mileage, lodging, and per diem.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: "rgba(255,255,255,0.1)",
+      borderRadius: "10px",
+      padding: "12px 16px",
+      fontSize: "12px",
+      border: "1px solid rgba(255,255,255,0.15)"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      fontWeight: "700"
+    }
+  }, "Planning Estimate Only"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "4px 0 0",
+      opacity: 0.75
+    }
+  }, "FY2026 rates - CY2026 mileage")))), /*#__PURE__*/React.createElement("div", {
+    id: "app-tabs",
+    style: {
+      borderBottom: `2px solid ${C.border}`,
+      background: C.white,
+      overflowX: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: "900px",
+      margin: "0 auto",
+      display: "flex",
+      gap: "4px",
+      padding: "0 24px"
+    },
+    role: "tablist",
+    "aria-label": "Application tabs",
+    onKeyDown: e => {
+      const ids = tabs.map(t => t.id);
+      const cur = ids.indexOf(activeTab);
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setActiveTab(ids[(cur + 1) % ids.length]);
+        document.getElementById(`tab-${ids[(cur + 1) % ids.length]}`)?.focus();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setActiveTab(ids[(cur - 1 + ids.length) % ids.length]);
+        document.getElementById(`tab-${ids[(cur - 1 + ids.length) % ids.length]}`)?.focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        setActiveTab(ids[0]);
+        document.getElementById(`tab-${ids[0]}`)?.focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        setActiveTab(ids[ids.length - 1]);
+        document.getElementById(`tab-${ids[ids.length - 1]}`)?.focus();
+      }
+    }
+  }, tabs.map(t => /*#__PURE__*/React.createElement("button", {
+    key: t.id,
+    id: `tab-${t.id}`,
+    role: "tab",
+    "aria-selected": activeTab === t.id,
+    "aria-controls": `panel-${t.id}`,
+    tabIndex: activeTab === t.id ? 0 : -1,
+    onClick: () => setActiveTab(t.id),
+    style: {
+      padding: "14px 16px",
+      border: "none",
+      borderBottom: `3px solid ${activeTab === t.id ? C.blue : "transparent"}`,
+      cursor: "pointer",
+      fontSize: "13px",
+      fontWeight: activeTab === t.id ? "700" : "500",
+      color: activeTab === t.id ? C.blue : C.textMuted,
+      background: "transparent",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      whiteSpace: "nowrap",
+      transition: "color 0.15s"
+    }
+  }, t.icon, " ", t.label)))), /*#__PURE__*/React.createElement("main", {
+    style: {
+      flex: 1,
+      maxWidth: "900px",
+      margin: "0 auto",
+      width: "100%",
+      padding: "24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    id: "panel-estimate",
+    role: "tabpanel",
+    "aria-labelledby": "tab-estimate",
+    tabIndex: 0,
+    hidden: activeTab !== "estimate"
+  }, renderEstimateTab()), /*#__PURE__*/React.createElement("div", {
+    id: "panel-map",
+    role: "tabpanel",
+    "aria-labelledby": "tab-map",
+    tabIndex: 0,
+    hidden: activeTab !== "map"
+  }, renderRouteTab()), /*#__PURE__*/React.createElement("div", {
+    id: "panel-data",
+    role: "tabpanel",
+    "aria-labelledby": "tab-data",
+    tabIndex: 0,
+    hidden: activeTab !== "data"
+  }, renderRatesTab()), /*#__PURE__*/React.createElement("div", {
+    id: "panel-mileage",
+    role: "tabpanel",
+    "aria-labelledby": "tab-mileage",
+    tabIndex: 0,
+    hidden: activeTab !== "mileage"
+  }, renderMileageTab()), /*#__PURE__*/React.createElement("div", {
+    id: "panel-help",
+    role: "tabpanel",
+    "aria-labelledby": "tab-help",
+    tabIndex: 0,
+    hidden: activeTab !== "help"
+  }, renderHelpTab())), /*#__PURE__*/React.createElement("footer", {
+    id: "app-footer",
+    style: {
+      borderTop: `1px solid ${C.border}`,
+      padding: "16px 24px",
+      textAlign: "center",
+      fontSize: "12px",
+      color: C.footerText,
+      background: C.white
+    }
+  }, "Travel Mileage & Per Diem Estimator (tata) | (c) 2026 AJSU | Reference rates only -- not affiliated with any government agency", " | ", ["terms", "privacy", "disclaimer"].map((k, i) => /*#__PURE__*/React.createElement("span", {
+    key: k
+  }, i > 0 && " | ", /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPolicyType(k),
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: C.blue,
+      fontSize: "12px",
+      textDecoration: "underline",
+      padding: 0
+    }
+  }, POLICY_DOCS[k].title))), " | ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "Internal tools access",
+    onClick: () => {
+      aiUnlocked ? setShowParser(true) : setShowPasscode(true);
+    },
+    onFocus: e => {
+      e.currentTarget.style.opacity = "1";
+    },
+    onBlur: e => {
+      e.currentTarget.style.opacity = "0.5";
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.opacity = "0.8";
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.opacity = "0.5";
+    },
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      color: C.gray,
+      padding: "7px",
+      minWidth: "24px",
+      minHeight: "24px",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: 1,
+      verticalAlign: "middle",
+      opacity: 0.5
+    }
+  }, /*#__PURE__*/React.createElement(Lock, {
+    size: 11,
+    "aria-hidden": "true"
+  }))), POLICY_DOCS[policyType] && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "16px"
+    },
+    onClick: e => {
+      if (e.target === e.currentTarget) setPolicyType(null);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "policy-title",
+    style: {
+      background: C.white,
+      borderRadius: "16px",
+      padding: "28px",
+      width: "100%",
+      maxWidth: "540px",
+      boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+      maxHeight: "85vh",
+      overflowY: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "policy-title",
+    style: {
+      margin: 0,
+      fontSize: "17px",
+      fontWeight: "700",
+      color: C.text
+    }
+  }, POLICY_DOCS[policyType].title), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPolicyType(null),
+    style: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      padding: "10px",
+      minWidth: "44px",
+      minHeight: "44px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    },
+    "aria-label": "Close"
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 20,
+    color: C.textMuted
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "13px",
+      color: C.textMuted,
+      lineHeight: "1.8"
+    }
+  }, POLICY_DOCS[policyType].body.map(([h, p], i, a) => /*#__PURE__*/React.createElement("p", {
+    key: h,
+    style: i === 0 ? {
+      marginTop: 0
+    } : i === a.length - 1 ? {
+      marginBottom: 0
+    } : undefined
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text
+    }
+  }, h, "."), " ", p))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setPolicyType(null),
+    style: btn("primary", {
+      marginTop: "20px",
+      width: "100%",
+      justifyContent: "center"
+    })
+  }, "Close"))), showPasscode && /*#__PURE__*/React.createElement(PasscodeModal, {
+    onSuccess: () => {
+      setAiUnlocked(true);
+      setShowPasscode(false);
+      setShowParser(true);
+      saveStorage({
+        aiUnlocked: true
+      });
+    },
+    onClose: () => setShowPasscode(false)
+  }), showParser && /*#__PURE__*/React.createElement(ParserModal, {
+    onClose: () => setShowParser(false),
+    onApply: applyParsed
+  }), toast && /*#__PURE__*/React.createElement(Toast, {
+    msg: toast,
+    onDismiss: () => setToast(null)
+  }), confirm && /*#__PURE__*/React.createElement(ConfirmDialog, {
+    msg: confirm.msg,
+    confirmLabel: confirm.confirmLabel,
+    cancelLabel: confirm.cancelLabel,
+    onConfirm: () => {
+      confirm.cb();
+      setConfirm(null);
+    },
+    onCancel: () => setConfirm(null)
+  }));
+}
+
+    const container = document.getElementById("root");
+    const root = window.ReactDOMClient.createRoot(container);
+    root.render(window.React.createElement(App));
+  </script>
+</body>
+</html>

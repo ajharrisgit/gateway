@@ -1,0 +1,205 @@
+/* Externalized from an inline <style> block in travel_gateway.html so this
+   page can ship a strict style-src CSP with no 'unsafe-inline'. */
+:root {
+  --bg: #0b1120;
+  --card-bg: rgba(30, 41, 59, 0.7);
+  --border: rgba(255, 255, 255, 0.1);
+  --accent: #38bdf8;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-badge {
+  background: linear-gradient(135deg, #0284c7, #38bdf8);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+  letter-spacing: 0.05em;
+}
+.title-group h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.title-group p {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.nav-tabs {
+  display: flex;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.tab-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tab-btn.active {
+  background: #38bdf8;
+  color: #0f172a;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.4);
+}
+.tab-btn .badge {
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.tab-btn.active .badge {
+  background: rgba(15, 23, 42, 0.2);
+  color: #0f172a;
+}
+.action-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-link:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+iframe {
+  flex: 1;
+  width: 100%;
+  /* Header plus the policy footer below it. Keep in step with both. */
+  height: calc(100vh - 99px);
+  border: none;
+  background: #fff;
+}
+footer.policy-bar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 12px;
+  color: #596578;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+footer.policy-bar button {
+  background: none;
+  border: none;
+  padding: 4px;
+  font-size: 12px;
+  color: #1f4788;
+  text-decoration: underline;
+  cursor: pointer;
+}
+footer.policy-bar button:focus-visible { outline: 2px solid #1f4788; outline-offset: 2px; }
+#policy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#policy-overlay.open { display: flex; }
+#policy-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  font-size: 13px;
+  line-height: 1.8;
+  color: #596578;
+}
+#policy-card h2 { margin: 0 0 16px; font-size: 17px; color: #1e293b; }
+#policy-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+}
+#policy-actions button {
+  /* 24x24 is the minimum hit target the other surfaces are held to; this is
+     comfortably above it. */
+  min-height: 40px;
+  padding: 0 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+#policy-actions button:hover { background: #eef2f7; }
+#policy-actions button:focus-visible { outline: 2px solid #1f4788; outline-offset: 2px; }
+#policy-card strong { color: #1e293b; }
